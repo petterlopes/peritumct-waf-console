@@ -205,7 +205,7 @@ def http_probe(host: str, server: str) -> dict:
     try:
         sock = ctx.wrap_socket(socket.create_connection((server, 443), timeout=8), server_hostname=host)
         sock.sendall(
-            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.4\r\n"
+            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.5\r\n"
             f"Accept-Encoding: identity\r\nConnection: close\r\n\r\n".encode()
         )
         data = b""
@@ -240,7 +240,7 @@ def engine_status() -> dict:
         "include_large_uploads": bool(re.search(r"INCLUDE_LARGE_UPLOADS\s*[:=]\s*(1|true|yes)", acquis, re.I)),
         "creds_present": CREDS_PATH.is_file(),
         "bouncer_key_present": bool(bouncer_key()),
-        "version": "waf-console/1.0.4",
+        "version": "waf-console/1.0.5",
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
     }
 
@@ -600,7 +600,7 @@ def add_ban(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "waf-console/1.0.4"
+    server_version = "waf-console/1.0.5"
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))

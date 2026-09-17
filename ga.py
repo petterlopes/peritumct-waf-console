@@ -166,9 +166,20 @@ def _country_sessions(snap: dict[str, Any]) -> dict[str, int]:
     return out
 
 
-def _ga_public(snap: dict[str, Any]) -> dict[str, Any]:
+def _has_sessions(snap: dict[str, Any]) -> bool:
+    for item in list(snap.get("hosts") or []) + list(snap.get("countries") or []):
+        if isinstance(item, dict) and _as_int(item.get("sessions")) > 0:
+            return True
+    return False
+
+
+def public(snap: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Operator-facing GA label. contributes only when a snapshot has sessions > 0."""
+    snap = snap if isinstance(snap, dict) else load_snapshot()
+    configured = bool(snap.get("configured"))
     return {
-        "configured": bool(snap.get("configured")),
+        "configured": configured,
+        "contributes": bool(configured and _has_sessions(snap)),
         "property": snap.get("property") or DEFAULT_PROPERTY,
         "window_days": snap.get("window_days") or 0,
         "hosts": list(snap.get("hosts") or []),
@@ -194,7 +205,7 @@ def attach_map(payload: dict | None) -> dict:
             item["ga_verdict"] = verdict(item.get("count"), sessions)
         countries.append(item)
     payload["countries"] = countries
-    payload["ga"] = _ga_public(snap)
+    payload["ga"] = public(snap)
     if not payload.get("geo_source"):
         payload["geo_source"] = "crowdsec-lapi"
     return _scrub(payload)
@@ -256,9 +267,9 @@ def attach_correlation(payload: dict | None, map_payload: dict | None = None) ->
                     "verdict": verdict(count, sessions),
                 }
             )
-    public = _ga_public(snap)
-    public["countries"] = countries
-    payload["ga"] = public
+    exposed = public(snap)
+    exposed["countries"] = countries
+    payload["ga"] = exposed
     payload.pop("map", None)
     connectors = [c for c in (payload.get("connectors") or []) if isinstance(c, dict)]
     if not any(

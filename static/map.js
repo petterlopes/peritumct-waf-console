@@ -147,9 +147,15 @@ function showMapTip(html, ev) {
 }
 
 function selectCountry(iso) {
-  mapUi.selected = iso || ""
+  iso = (iso || "").toUpperCase()
+  if (mapUi.selected && mapUi.selected === iso) iso = ""
+  mapUi.selected = iso
   const box = mapEl("filterBox")
-  if (box && iso) box.value = iso
+  if (box) box.value = iso
+  if (typeof applyFilter === "function") {
+    applyFilter()
+    return
+  }
   if (typeof renderMapView === "function" && mapUi.payload) renderMapView(mapUi.payload)
   if (typeof renderMap === "function" && mapEl("mapMini") && mapUi.payload) renderMap(mapEl("mapMini"), mapUi.payload, { interactive: false })
 }
@@ -298,7 +304,8 @@ function bindMapChrome() {
     mapUi.ty = 0
     mapUi.selected = ""
     if (mapEl("filterBox")) mapEl("filterBox").value = ""
-    if (mapUi.payload && typeof renderMapView === "function") renderMapView(mapUi.payload)
+    if (typeof applyFilter === "function") applyFilter()
+    else if (mapUi.payload && typeof renderMapView === "function") renderMapView(mapUi.payload)
   }
   if (mapEl("mapArcs")) mapEl("mapArcs").onclick = () => {
     mapUi.arcs = !mapUi.arcs

@@ -15,8 +15,11 @@ loopback + admin VPN.
 No advertising IDs, no third-party analytics **in this console**, no third-party GeoIP service.
 
 An optional `WAF_GA_SNAPSHOT_FILE` is an operator-exported **aggregate** of public-site
-GA4 sessions by hostname and country (no `client_id`, no user IDs). The console never
-loads gtag, never calls the Google Data API, and never sends CrowdSec IPs to Google.
+GA4 sessions by hostname and country (no `client_id`, no user IDs). Analytics **does
+not contribute** until that file is a valid aggregate export with at least one host
+or country session count greater than zero. Dest production default is inactive
+(`WAF_GA_SNAPSHOT_FILE` commented). The console never loads gtag on `/waf`, never
+calls the Google Data API, and never sends CrowdSec IPs to Google.
 
 ## Retention
 

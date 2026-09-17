@@ -83,77 +83,104 @@ OWASP_2021: list[dict[str, str]] = [
 ]
 
 # Local ATT&CK catalog — do not download MITRE GitHub at runtime.
+# Tactics are ATT&CK Enterprise; tiles stay listed even when count is 0.
 ATTACK: dict[str, dict[str, str]] = {
     "T1190": {
         "id": "T1190",
         "name": "Exploit Public-Facing Application",
+        "tactic": "Initial Access",
         "url": "https://attack.mitre.org/techniques/T1190/",
     },
     "T1595": {
         "id": "T1595",
         "name": "Active Scanning",
+        "tactic": "Reconnaissance",
         "url": "https://attack.mitre.org/techniques/T1595/",
     },
     "T1110": {
         "id": "T1110",
         "name": "Brute Force",
+        "tactic": "Credential Access",
         "url": "https://attack.mitre.org/techniques/T1110/",
     },
     "T1059": {
         "id": "T1059",
         "name": "Command and Scripting Interpreter",
+        "tactic": "Execution",
         "url": "https://attack.mitre.org/techniques/T1059/",
     },
     "T1083": {
         "id": "T1083",
         "name": "File and Directory Discovery",
+        "tactic": "Discovery",
         "url": "https://attack.mitre.org/techniques/T1083/",
     },
     "T1046": {
         "id": "T1046",
         "name": "Network Service Discovery",
+        "tactic": "Reconnaissance",
         "url": "https://attack.mitre.org/techniques/T1046/",
     },
     "T1189": {
         "id": "T1189",
         "name": "Drive-by Compromise",
+        "tactic": "Initial Access",
         "url": "https://attack.mitre.org/techniques/T1189/",
     },
     "T1505": {
         "id": "T1505",
         "name": "Server Software Component",
+        "tactic": "Persistence",
         "url": "https://attack.mitre.org/techniques/T1505/",
     },
     "T1090": {
         "id": "T1090",
         "name": "Proxy",
+        "tactic": "Command and Control",
         "url": "https://attack.mitre.org/techniques/T1090/",
     },
     "T1562": {
         "id": "T1562",
         "name": "Impair Defenses",
+        "tactic": "Defense Evasion",
         "url": "https://attack.mitre.org/techniques/T1562/",
     },
     "T1600": {
         "id": "T1600",
         "name": "Weaken Encryption",
+        "tactic": "Defense Evasion",
         "url": "https://attack.mitre.org/techniques/T1600/",
     },
     "T1068": {
         "id": "T1068",
         "name": "Exploitation for Privilege Escalation",
+        "tactic": "Privilege Escalation",
         "url": "https://attack.mitre.org/techniques/T1068/",
     },
     "T1505.003": {
         "id": "T1505.003",
         "name": "Web Shell",
+        "tactic": "Persistence",
         "url": "https://attack.mitre.org/techniques/T1505/003/",
     },
 }
 
+_TACTIC_ORDER = [
+    "Reconnaissance",
+    "Initial Access",
+    "Execution",
+    "Persistence",
+    "Privilege Escalation",
+    "Defense Evasion",
+    "Credential Access",
+    "Discovery",
+    "Command and Control",
+]
+
 # First-match CrowdSec scenario / AppSec / CRS ID mapping.
 _CLASSIFY_RULES: list[tuple[re.Pattern[str], str, list[str], str]] = [
     (re.compile(r"ssrf|934", re.I), "A10", ["T1190", "T1090"], "high"),
+    (re.compile(r"tls|ssl|weak.?crypto", re.I), "A02", ["T1600"], "medium"),
     (re.compile(r"sqli|942", re.I), "A03", ["T1190", "T1059"], "high"),
     (re.compile(r"xss|941", re.I), "A03", ["T1189", "T1059"], "high"),
     (re.compile(r"rce|932|933", re.I), "A03", ["T1190", "T1059", "T1068"], "high"),
@@ -216,6 +243,22 @@ def _alert_ip(alert: dict) -> str:
     return ""
 
 
+def _alert_geo(alert: dict) -> tuple[str, str]:
+    """Country ISO + city from LAPI source (cheap; empty string when absent)."""
+    src = alert.get("source") if isinstance(alert.get("source"), dict) else {}
+    cn = src.get("cn") or src.get("country") or ""
+    city = src.get("city") or ""
+    if not cn or not city:
+        events = alert.get("events") or []
+        if events and isinstance(events[0], dict):
+            ev_src = events[0].get("source") if isinstance(events[0].get("source"), dict) else {}
+            if not cn:
+                cn = ev_src.get("cn") or ev_src.get("country") or ""
+            if not city:
+                city = ev_src.get("city") or ""
+    return str(cn or "").strip().upper(), str(city or "").strip()
+
+
 def _alert_name(alert: dict) -> str:
     name = alert.get("scenario") or alert.get("reason") or ""
     if name:
@@ -267,7 +310,7 @@ def connectors() -> list[dict[str, Any]]:
             "MITRE ATT&CK",
             "local-catalog",
             "configured",
-            "Local ATT&CK catalog (T1190–T1505.003). No GitHub download.",
+            "Local ATT&CK Enterprise catalog (T1190–T1505.003). No GitHub download.",
         ),
         _connector(
             "INTERNAL_ENRICHMENT",
@@ -351,9 +394,12 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
             continue
         name = _alert_name(alert)
         hit = classify(name)
+        cn, city = _alert_geo(alert)
         finding = {
             "when": alert.get("created_at") or alert.get("start_at") or "",
             "ip": _alert_ip(alert),
+            "cn": cn,
+            "city": city,
             "scenario": name,
             "owasp": hit["code"],
             "attack": list(hit.get("attack") or []),
@@ -381,9 +427,46 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
         "owasp": list(catalog.values()),
         "findings": findings,
         "attack": attack_list,
+        "mitre": _mitre_block(findings, attack_counts),
         "connectors": connectors(),
     }
     return _scrub(payload)
+
+
+def _mitre_block(findings: list[dict[str, Any]], attack_counts: dict[str, int]) -> dict[str, Any]:
+    """Full local ATT&CK catalog with counts (0 = uncovered tile) plus tactic rollup."""
+    tech_owasp: dict[str, set[str]] = {tid: set() for tid in ATTACK}
+    for finding in findings:
+        code = str(finding.get("owasp") or "")
+        for tid in finding.get("attack") or []:
+            if tid in tech_owasp and code and code != "none":
+                tech_owasp[tid].add(code)
+    techniques: list[dict[str, Any]] = []
+    for tid, meta in ATTACK.items():
+        techniques.append(
+            {
+                "id": tid,
+                "name": meta["name"],
+                "tactic": meta["tactic"],
+                "url": meta["url"],
+                "count": attack_counts.get(tid, 0),
+                "owasp": sorted(tech_owasp[tid]),
+            }
+        )
+    tactic_map: dict[str, dict[str, Any]] = {}
+    for tech in techniques:
+        name = tech["tactic"]
+        bucket = tactic_map.setdefault(name, {"name": name, "count": 0, "techniques": []})
+        bucket["count"] += int(tech["count"] or 0)
+        bucket["techniques"].append(tech["id"])
+    tactics = [tactic_map[name] for name in _TACTIC_ORDER if name in tactic_map]
+    uncovered = [tech["id"] for tech in techniques if not tech["count"]]
+    return {
+        "techniques": techniques,
+        "tactics": tactics,
+        "findings": findings,
+        "uncovered": uncovered,
+    }
 
 
 def _stix_id(kind: str, seed: str) -> str:

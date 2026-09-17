@@ -29,6 +29,9 @@ body { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
   display: flex;
   flex-direction: column;
   gap: 28px;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 .brand { display: flex; gap: 12px; align-items: center; padding: 0 8px; }
 .brand-mark {
@@ -45,7 +48,7 @@ body { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
   border-right-color: var(--green);
 }
 .brand small { display: block; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
-nav { display: flex; flex-direction: column; gap: 6px; }
+nav { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
 .nav-btn {
   appearance: none; border: 0; text-align: left; cursor: pointer;
   background: transparent; color: var(--muted); padding: 11px 12px; border-radius: 14px;
@@ -53,6 +56,18 @@ nav { display: flex; flex-direction: column; gap: 6px; }
 }
 .nav-btn svg { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
 .nav-btn.active, .nav-btn:hover { background: rgba(62, 224, 255, 0.08); color: var(--text); }
+.nav-btn[data-view="mitre"] { color: var(--cyan); }
+.nav-btn[data-view="mitre"] .nav-tag {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  border: 1px solid rgba(62, 224, 255, 0.45);
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: rgba(62, 224, 255, 0.08);
+}
 .rail-foot { margin-top: auto; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; padding: 0 8px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
 .dot.ok { background: var(--green); }
@@ -68,6 +83,14 @@ h1 { margin: 0; font-size: 26px; font-weight: 650; }
   background: #0f1728; border: 1px solid var(--stroke); color: var(--text);
   border-radius: 12px; padding: 8px 12px; min-width: 220px;
 }
+.search-hint { margin: 0; max-width: 220px; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid rgba(62, 224, 255, 0.35);
+  background: #143445; color: var(--cyan);
+  border-radius: 999px; padding: 6px 10px; font-size: 12px;
+}
+.filter-chip button { padding: 4px 8px; border-radius: 999px; }
 button, .ghost {
   border: 1px solid var(--stroke); background: #152037; color: var(--text);
   border-radius: 12px; padding: 8px 14px; cursor: pointer;
@@ -190,6 +213,7 @@ button[type="submit"] { background: #143445; color: var(--cyan); }
   min-height: 210px;
 }
 .glow-cyan { box-shadow: 0 18px 28px rgba(62, 224, 255, 0.06); }
+#mitreOverviewCard { grid-column: 1 / -1; cursor: pointer; min-height: auto; }
 .glow-green { box-shadow: 0 18px 28px rgba(61, 255, 156, 0.06); }
 .card h2 { margin: 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
 .card > p, .hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
@@ -264,7 +288,7 @@ td { padding: 10px 6px; border-bottom: 1px solid var(--stroke); vertical-align: 
 .code { background: #0b1220; border-radius: 12px; padding: 12px; overflow: auto; color: #b7c7e6; font-size: 12px; max-height: 320px; }
 #view-decisions .card, #view-alerts .card, #view-domains .card, #view-engine .card,
 #view-allowlists .card, #view-metrics .card, #view-map .card, #view-rules .card,
-#view-owasp .card { min-height: auto; }
+#view-owasp .card, #view-mitre .card { min-height: auto; }
 
 .owasp-grid {
   display: grid;
@@ -310,6 +334,61 @@ td { padding: 10px 6px; border-bottom: 1px solid var(--stroke); vertical-align: 
   border-radius: 999px;
   background: linear-gradient(90deg, var(--cyan), var(--green));
 }
+.mitre-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.mitre-tile {
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 14px;
+  background: linear-gradient(180deg, #121c32 0%, #0d1526 100%);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  color: inherit;
+  min-height: 148px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.mitre-tile b { font-size: 13px; letter-spacing: .08em; color: var(--cyan); }
+.mitre-tile span { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mitre-tile strong { font-size: 22px; font-weight: 700; }
+.mitre-tile small { font-size: 10px; color: var(--muted); word-break: break-all; }
+.mitre-tile.hot {
+  border-color: rgba(62, 224, 255, 0.45);
+  box-shadow: 0 0 28px rgba(62, 224, 255, 0.12);
+}
+.mitre-tile.active {
+  border-color: rgba(62, 224, 255, 0.55);
+  box-shadow: 0 0 22px rgba(62, 224, 255, 0.12);
+}
+.tactic-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.tactic-chip {
+  border: 1px solid var(--stroke);
+  background: #121c32;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.tactic-chip b { color: var(--cyan); }
+.tactic-chip.active {
+  border-color: rgba(62, 224, 255, 0.55);
+  background: #143445;
+}
+.ga-inactive-line { margin: 0 0 16px; }
+.stack-row.selected {
+  border: 1px solid rgba(62, 224, 255, 0.4);
+  border-radius: 10px;
+  padding: 4px 8px;
+}
 .connector-type {
   font-size: 11px;
   letter-spacing: .03em;
@@ -322,6 +401,7 @@ td { padding: 10px 6px; border-bottom: 1px solid var(--stroke); vertical-align: 
 .country-row.ga-mixed b, .ga-mixed b { color: var(--cyan); }
 #gaPrecision .stack-row { font-size: 12px; }
 a.ghost { display: inline-flex; align-items: center; text-decoration: none; }
+table a, .pill a { color: var(--cyan); }
 
 .inline.wrap { flex-wrap: wrap; }
 .stack-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -334,9 +414,9 @@ a.ghost { display: inline-flex; align-items: center; text-decoration: none; }
 #view-sites .card { min-height: auto; }
 @media (max-width: 1180px) {
   body { grid-template-columns: 1fr; }
-  .rail { flex-direction: row; flex-wrap: wrap; }
-  nav { flex-direction: row; flex-wrap: wrap; }
-  .widget-grid, .grid-2, .host-tiles, .owasp-grid { grid-template-columns: 1fr; }
+  .rail { flex-direction: row; flex-wrap: wrap; height: auto; min-height: 0; overflow: visible; }
+  nav { flex-direction: row; flex-wrap: wrap; overflow: visible; flex: none; }
+  .widget-grid, .grid-2, .host-tiles, .owasp-grid, .mitre-grid { grid-template-columns: 1fr; }
   .data-split, .kperf, .rta { grid-template-columns: 1fr; }
   .span-3 { grid-column: auto; }
   .stack-form { grid-template-columns: 1fr; }

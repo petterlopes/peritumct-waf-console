@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id)
-const views = ["overview", "sites", "map", "decisions", "alerts", "owasp", "rules", "allowlists", "metrics", "domains", "engine"]
+const views = ["overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "domains", "engine"]
 function viewTitles() {
   return {
     overview: t("nav.overview", "Overview"),
@@ -8,6 +8,7 @@ function viewTitles() {
     decisions: t("nav.decisions", "Decisions"),
     alerts: t("nav.alerts", "Alerts"),
     owasp: t("nav.owasp", "OWASP"),
+    mitre: t("nav.mitre", "MITRE"),
     rules: t("nav.rules", "Rules"),
     allowlists: t("nav.allowlists", "Allowlists"),
     metrics: t("nav.metrics", "Metrics"),
@@ -18,6 +19,8 @@ function viewTitles() {
 
 let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null }
 let owaspSelected = ""
+let mitreSelected = ""
+let mitreTactic = ""
 
 function fmtTime(ts) {
   if (!ts) return "—"
@@ -113,10 +116,73 @@ function ipOf(item) {
   return "—"
 }
 
+function selectedIso() {
+  return (typeof mapUi !== "undefined" && mapUi && mapUi.selected) || ""
+}
+
+function geoMatch(cn) {
+  const iso = selectedIso()
+  if (!iso) return true
+  return String(cn || "").toUpperCase() === iso.toUpperCase()
+}
+
+function countryOf(alert) {
+  const src = (alert && alert.source) || {}
+  let cn = src.cn || src.country || ""
+  if (!cn && alert && alert.events && alert.events[0] && alert.events[0].source) {
+    cn = alert.events[0].source.cn || alert.events[0].source.country || ""
+  }
+  return String(cn || "").toUpperCase()
+}
+
+function mapPoints() {
+  const map = (cache.coverage && cache.coverage.map) || (cache.overview && cache.overview.map) || (typeof mapUi !== "undefined" && mapUi && mapUi.payload) || {}
+  return map.points || []
+}
+
+function cnOfIp(ip) {
+  const hit = mapPoints().find((p) => p && p.ip === ip)
+  return hit ? String(hit.cn || "").toUpperCase() : ""
+}
+
+function syncMapFromFilterBox() {
+  if (typeof mapUi === "undefined" || !mapUi) return
+  const q = ($("filterBox") && $("filterBox").value || "").trim()
+  if (!q) {
+    mapUi.selected = ""
+    return
+  }
+  if (/^[A-Za-z]{2}$/.test(q)) mapUi.selected = q.toUpperCase()
+}
+
 function matchesFilter(text) {
   const q = ($("filterBox").value || "").trim().toLowerCase()
   if (!q) return true
+  const iso = selectedIso()
+  if (iso && q === iso.toLowerCase()) return true
   return String(text).toLowerCase().includes(q)
+}
+
+function attackLink(tid) {
+  const mitre = (cache.correlation && cache.correlation.mitre) || {}
+  const catalog = mitre.techniques || (cache.correlation && cache.correlation.attack) || []
+  const tech = catalog.find((x) => x.id === tid)
+  const url = (tech && tech.url) || ("https://attack.mitre.org/techniques/" + String(tid).replace(".", "/") + "/")
+  return `<a href="${url}" target="_blank" rel="noopener">${tid}</a>`
+}
+
+function renderFilterChip() {
+  const chip = $("mapFilterChip")
+  const label = $("mapFilterLabel")
+  if (!chip) return
+  const iso = selectedIso()
+  if (!iso) {
+    chip.classList.add("hidden")
+    return
+  }
+  const meta = (typeof countryMeta === "function") ? countryMeta(iso) : { name: iso }
+  chip.classList.remove("hidden")
+  if (label) label.textContent = t("map.filter_chip", "Map: ") + (meta.name || iso)
 }
 
 function stack(items) {
@@ -131,7 +197,8 @@ function renderOverview(data) {
   const pct = c.domains ? Math.round((100 * c.domains_ok) / c.domains) : 0
   setRing("domRing", pct)
   setRing("localRing", c.decisions_local ? Math.min(100, 12 + c.decisions_local * 8) : 8)
-  const buckets = hourBuckets(data.alerts)
+  const alerts = (data.alerts || []).filter((a) => geoMatch(countryOf(a)))
+  const buckets = hourBuckets(alerts)
   areaChart($("sparkCyan"), buckets, "#3ee0ff", "#3ee0ff")
   areaChart($("sparkGreen"), buckets, "#3dff9c", "#3dff9c")
   barChart($("bars"), buckets.slice(-12))
@@ -166,7 +233,7 @@ function renderOverview(data) {
       ${n}
     </div>`).join("")
   const ips = []
-  ;(data.alerts || []).forEach((a) => {
+  alerts.forEach((a) => {
     const ip = ipOf(a)
     if (ip !== "—" && !ips.includes(ip)) ips.push(ip)
   })
@@ -177,6 +244,8 @@ function renderOverview(data) {
   renderMap($("mapMini"), map, { interactive: false })
   if ($("mapMiniNote")) $("mapMiniNote").textContent = t("map.note")
   setLive(!data.error && eng.lapi_listen, data.error ? "LAPI: " + data.error : t("live.lapi_up"))
+  renderGaPrecision(cache.correlation, "gaOverview")
+  if (cache.correlation) paintMitreOverview(cache.correlation)
 }
 
 function renderMapView(payload) {
@@ -291,7 +360,6 @@ function fillPolicyForm(item) {
 
 function applyCoverage(coverage) {
   cache.coverage = coverage
-  renderMapView(coverage.map)
   renderRules(coverage.rules)
   renderAllowlists(coverage.allowlists)
   renderMetrics(coverage.metrics)
@@ -299,14 +367,12 @@ function applyCoverage(coverage) {
     cache.sites = coverage.sites
     renderSites(coverage.sites)
   }
-  if (coverage.correlation) {
-    cache.correlation = coverage.correlation
-    renderOwasp(coverage.correlation)
+  if (coverage.correlation) cache.correlation = coverage.correlation
+  if (coverage.map) {
+    if (typeof mapUi !== "undefined") mapUi.payload = coverage.map
+    if (cache.overview) cache.overview.map = coverage.map
   }
-  if (cache.overview) {
-    cache.overview.map = coverage.map
-    renderMap($("mapMini"), coverage.map, { interactive: false })
-  }
+  applyFilter()
 }
 
 function renderMetrics(mx) {
@@ -331,7 +397,12 @@ function renderMetrics(mx) {
 }
 
 function renderDecisions(items) {
-  const filtered = (items || []).filter((d) => matchesFilter([d.value, d.origin, d.scenario, d.reason].join(" ")))
+  const iso = selectedIso()
+  const filtered = (items || []).filter((d) => {
+    if (!matchesFilter([d.value, d.origin, d.scenario, d.reason].join(" "))) return false
+    if (!iso) return true
+    return geoMatch(cnOfIp(d.value || d.ip || ""))
+  })
   $("decisionsBody").innerHTML = filtered.map((d) => {
     const ip = d.value || d.ip || "—"
     return `<tr>
@@ -346,7 +417,7 @@ function renderDecisions(items) {
 }
 
 function renderAlerts(items) {
-  const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a)].join(" ")))
+  const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a), countryOf(a)].join(" ")) && geoMatch(countryOf(a)))
   $("alertsBody").innerHTML = filtered.map((a) => `<tr>
     <td>${fmtTime(a.created_at)}</td>
     <td><code>${ipOf(a)}</code></td>
@@ -384,7 +455,8 @@ function renderOwasp(data) {
   }
   const findings = (data.findings || []).filter((f) => {
     if (owaspSelected && f.owasp !== owaspSelected) return false
-    return matchesFilter([f.when, f.ip, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
+    if (!geoMatch(f.cn)) return false
+    return matchesFilter([f.when, f.ip, f.cn, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
   })
   const body = $("owaspFindings")
   if (body) {
@@ -393,7 +465,7 @@ function renderOwasp(data) {
       <td><code>${f.ip || "—"}</code></td>
       <td>${f.scenario || "—"}</td>
       <td>${f.owasp || "none"}</td>
-      <td>${(f.attack || []).join(" ") || "—"}</td>
+      <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
       <td>${f.confidence || "—"}</td>
     </tr>`).join("") || `<tr><td colspan="6">${t("owasp.empty", "No correlated findings")}</td></tr>`
   }
@@ -414,19 +486,19 @@ function renderOwasp(data) {
       <td>${c.note || ""}</td>
     </tr>`).join("") || `<tr><td colspan="5">${t("empty")}</td></tr>`
   }
-  renderGaPrecision(data)
+  renderGaPrecision(data, "gaPrecision")
 }
 
-function renderGaPrecision(data) {
-  const box = $("gaPrecisionBody")
-  const note = $("gaPrecisionNote")
-  if (!box) return
+function renderGaPrecision(data, mountId) {
+  const mount = $(mountId)
+  if (!mount) return
   const gaData = (data && data.ga) || {}
-  if (note) note.textContent = gaData.note || t("ga.note")
   if (!gaData.configured) {
-    box.innerHTML = `<p class="hint">${t("ga.unconfigured")}</p>`
+    mount.className = "hint muted ga-inactive-line"
+    mount.innerHTML = t("ga.inactive", "GA snapshot not loaded — LAPI only. Console never sends traffic to Google.")
     return
   }
+  const iso = selectedIso()
   const hosts = (gaData.hosts || []).map((h) => {
     const name = h.host || h
     const sessions = (h.sessions != null) ? h.sessions : ""
@@ -435,9 +507,109 @@ function renderGaPrecision(data) {
   const countries = (gaData.countries || []).map((c) => {
     const lapi = (c.lapi_count != null) ? c.lapi_count : "—"
     const vclass = c.verdict ? " ga-" + c.verdict : ""
-    return `<div class="stack-row${vclass}"><span>${c.cn} · LAPI ${lapi}</span><b>${c.sessions} ${t("ga.sessions", "sessions")} · ${t("ga.density", "density")} ${c.density} · ${c.verdict || ""}</b></div>`
+    const highlight = iso && String(c.cn || "").toUpperCase() === iso.toUpperCase() ? " selected" : ""
+    return `<div class="stack-row${vclass}${highlight}"><span>${c.cn} · LAPI ${lapi}</span><b>${c.sessions} ${t("ga.sessions", "sessions")} · ${t("ga.density", "density")} ${c.density} · ${c.verdict || ""}</b></div>`
   }).join("") || `<p class="hint">${t("empty")}</p>`
-  box.innerHTML = `<div class="grid-2"><div><h2>${t("th.host", "Host")}</h2>${hosts}</div><div><h2>${t("map.countries", "Countries")}</h2>${countries}</div></div>`
+  mount.className = "card"
+  mount.innerHTML =
+    `<div class="card-head"><h2 data-i18n="ga.title">${t("ga.title", "GA4 precision")}</h2><span class="tag">${t("map.ga", "GA")}</span></div>` +
+    `<p class="hint">${gaData.note || t("ga.note")}</p>` +
+    `<div class="grid-2"><div><h2>${t("th.host", "Host")}</h2>${hosts}</div><div><h2>${t("map.countries", "Countries")}</h2>${countries}</div></div>`
+}
+
+function paintMitreOverview(data) {
+  const mount = $("mitreOverview")
+  if (!mount) return
+  data = data || cache.correlation || {}
+  const techniques = ((data.mitre || {}).techniques || []).slice()
+  techniques.sort((a, b) => (b.count || 0) - (a.count || 0))
+  const top = techniques.slice(0, 8)
+  const max = Math.max(1, ...top.map((c) => c.count || 0))
+  mount.innerHTML = top.map((c) => {
+    const hot = (c.count || 0) > 0
+    const pct = Math.round((100 * (c.count || 0)) / max)
+    return `<button type="button" class="mitre-tile${hot ? " hot" : ""}" data-mitre-jump="${c.id}">
+      <b>${c.id}</b>
+      <span>${c.name || ""}</span>
+      <small>${c.tactic || ""}</small>
+      <strong>${c.count || 0}</strong>
+      <div class="owasp-bar"><span style="width:${pct}%"></span></div>
+    </button>`
+  }).join("") || `<p class="hint">${t("mitre.empty", "No ATT&CK findings")}</p>`
+}
+
+function renderMitre(data) {
+  data = data || cache.correlation || {}
+  paintMitreOverview(data)
+  const mitre = data.mitre || {}
+  const techniques = mitre.techniques || []
+  const tactics = mitre.tactics || []
+  const max = Math.max(1, ...techniques.map((c) => c.count || 0))
+  const chips = $("mitreTactics")
+  if (chips) {
+    chips.innerHTML = `<span class="hint">${t("mitre.tactics", "Tactics")}</span>` + tactics.map((tac) => {
+      const active = mitreTactic === tac.name ? " active" : ""
+      return `<button type="button" class="tactic-chip${active}" data-tactic="${tac.name}">${tac.name}<b>${tac.count || 0}</b></button>`
+    }).join("")
+    chips.onclick = (ev) => {
+      const btn = ev.target.closest("[data-tactic]")
+      if (!btn) return
+      const name = btn.getAttribute("data-tactic")
+      mitreTactic = mitreTactic === name ? "" : name
+      renderMitre(cache.correlation)
+    }
+  }
+  const tiles = $("mitreTiles")
+  if (tiles) {
+    const visible = techniques.filter((c) => !mitreTactic || c.tactic === mitreTactic)
+    tiles.innerHTML = visible.map((c) => {
+      const hot = (c.count || 0) > 0
+      const pct = Math.round((100 * (c.count || 0)) / max)
+      const active = mitreSelected === c.id ? " active" : ""
+      return `<button type="button" class="mitre-tile${hot ? " hot" : ""}${active}" data-mitre="${c.id}">
+        <b>${c.id}</b>
+        <span>${c.name || ""}</span>
+        <small>${c.tactic || ""}</small>
+        <strong>${c.count || 0}</strong>
+        <div class="owasp-bar"><span style="width:${pct}%"></span></div>
+        <small>${(c.owasp || []).join(" ") || "—"}</small>
+      </button>`
+    }).join("") || `<p class="hint">${t("mitre.empty", "No ATT&CK findings")}</p>`
+    tiles.onclick = (ev) => {
+      const tile = ev.target.closest("[data-mitre]")
+      if (!tile) return
+      const id = tile.getAttribute("data-mitre")
+      mitreSelected = mitreSelected === id ? "" : id
+      renderMitre(cache.correlation)
+    }
+  }
+  const tacticIds = mitreTactic ? techniques.filter((x) => x.tactic === mitreTactic).map((x) => x.id) : []
+  const findings = (mitre.findings || data.findings || []).filter((f) => {
+    if (mitreSelected && !(f.attack || []).includes(mitreSelected)) return false
+    if (mitreTactic && !(f.attack || []).some((id) => tacticIds.includes(id))) return false
+    if (!geoMatch(f.cn)) return false
+    return matchesFilter([f.when, f.ip, f.cn, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
+  })
+  const body = $("mitreFindings")
+  if (body) {
+    body.innerHTML = findings.map((f) => `<tr>
+      <td>${fmtTime(f.when)}</td>
+      <td><code>${f.ip || "—"}</code></td>
+      <td>${f.cn || "—"}</td>
+      <td>${f.scenario || "—"}</td>
+      <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
+      <td>${f.owasp || "none"}</td>
+      <td>${f.confidence || "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="7">${t("mitre.empty", "No ATT&CK findings")}</td></tr>`
+  }
+  const uncovered = $("mitreUncovered")
+  if (uncovered) {
+    const ids = mitre.uncovered || []
+    uncovered.innerHTML = ids.length
+      ? ids.map((id) => `<span class="pill">${attackLink(id)}</span>`).join("")
+      : `<p class="hint">${t("empty")}</p>`
+  }
+  renderGaPrecision(data, "gaMitre")
 }
 
 function renderDomains(data) {
@@ -461,9 +633,17 @@ function renderDomains(data) {
 }
 
 function applyFilter() {
+  syncMapFromFilterBox()
   renderDecisions(cache.decisions)
   renderAlerts(cache.alerts)
   renderOwasp(cache.correlation)
+  renderMitre(cache.correlation)
+  if (cache.overview) renderOverview(cache.overview)
+  const map = (cache.coverage && cache.coverage.map) || (typeof mapUi !== "undefined" && mapUi && mapUi.payload)
+  if (map && typeof renderMapView === "function") renderMapView(map)
+  if (map && typeof renderMap === "function" && $("mapMini")) renderMap($("mapMini"), map, { interactive: false })
+  renderFilterChip()
+  renderGaPrecision(cache.correlation, "gaOverview")
 }
 
 async function loadCore() {
@@ -477,10 +657,8 @@ async function loadCore() {
   ])
   cache = { ...cache, overview, decisions: decisions.items || [], alerts: alerts.items || [], domains, engine, correlation }
   renderOverview(overview)
-  renderDecisions(cache.decisions)
-  renderAlerts(cache.alerts)
   renderDomains(domains)
-  renderOwasp(correlation)
+  applyFilter()
   $("enginePre").textContent = JSON.stringify(engine, null, 2)
 }
 
@@ -512,8 +690,24 @@ async function unban(ip) {
 document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => showView(btn.dataset.view))
 })
+const mitreOverviewCard = $("mitreOverviewCard")
+if (mitreOverviewCard) {
+  const openMitre = () => showView("mitre")
+  mitreOverviewCard.addEventListener("click", openMitre)
+  mitreOverviewCard.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault()
+      openMitre()
+    }
+  })
+}
 $("refreshBtn").addEventListener("click", loadAll)
 $("filterBox").addEventListener("input", applyFilter)
+if ($("mapFilterClear")) $("mapFilterClear").addEventListener("click", () => {
+  if (typeof mapUi !== "undefined") mapUi.selected = ""
+  if ($("filterBox")) $("filterBox").value = ""
+  applyFilter()
+})
 $("unbanForm").addEventListener("submit", (ev) => {
   ev.preventDefault()
   unban(new FormData(ev.target).get("ip"))

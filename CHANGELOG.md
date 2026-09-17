@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 — 2026-09-17
+
+- Dedicated MITRE ATT&CK tab (local Enterprise catalog, tactic/technique tiles, no GitHub download)
+- Map country selection is a console-wide filter (alerts, decisions, OWASP, MITRE)
+- GA honesty: snapshot inactive unless `WAF_GA_SNAPSHOT_FILE` has aggregate sessions (`contributes` only then)
+
 ## 1.0.4 — 2026-09-17
 
 - Optional GA4 aggregate snapshot (`WAF_GA_SNAPSHOT_FILE`) for WAF finding precision (LAPI/GA threat density)

@@ -91,7 +91,7 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_THEHIVE_KEY` | empty | Stored for operators; **never** returned in JSON |
 | `WAF_OPENCTI_URL` | empty | If set, OpenCTI connector status is `configured` (STIX file export) |
 | `WAF_OPENCTI_TOKEN` | empty | Stored for operators; **never** returned in JSON |
-| `WAF_GA_SNAPSHOT_FILE` | empty | Optional aggregate GA4 JSON (hostname + country sessions). See §14 |
+| `WAF_GA_SNAPSHOT_FILE` | empty | Optional aggregate GA4 JSON (hostname + country sessions). Inactive until a valid export is set. See §14 |
 
 ## 5. Reverse proxy (anti-lockout)
 
@@ -231,9 +231,16 @@ Personalidade Nuxt, Perícia WordPress Site Kit). This console **must not** load
 gtag, must **not** call the Google Analytics Data API, and must **never** send
 CrowdSec attacker IPs via Measurement Protocol.
 
+Analytics does **not** contribute until `WAF_GA_SNAPSHOT_FILE` is a valid
+aggregate export with at least one host or country `sessions > 0`. Dest
+production default is inactive (compose leaves the env commented). The public
+GA4 id `G-EWYYWP65FN` is a label only. `ga.contributes` is true only when a
+snapshot is loaded and has sessions.
+
 Operators may drop a **manual aggregate export** at `WAF_GA_SNAPSHOT_FILE`
 (example: `/var/lib/waf-control/ga-snapshot.json`). Shape:
 [examples/ga-snapshot.example.json](../examples/ga-snapshot.example.json).
+Never load gtag on `/waf`.
 
 How to export (GA4 UI, 7-day window):
 

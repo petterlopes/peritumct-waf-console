@@ -66,6 +66,38 @@ class CorrelateTests(unittest.TestCase):
         self.assertTrue(any("vpatch" in rule for rule in by_code["A06"]["hub_rules"]))
         self.assertEqual(len(data["findings"]), 3)
         self.assertFalse(data["push"])
+        for finding in data["findings"]:
+            self.assertIn("cn", finding)
+            self.assertIsInstance(finding["cn"], str)
+        self.assertIn("mitre", data)
+        self.assertTrue(data["mitre"]["techniques"])
+
+    def test_findings_cn_and_mitre_mapping(self) -> None:
+        data = correlate.correlate(
+            [
+                {
+                    "scenario": "crowdsecurity/http-generic-sqli",
+                    "source": {"ip": "203.0.113.10", "cn": "br", "city": "São Paulo"},
+                    "created_at": "2026-01-01T00:00:00Z",
+                },
+                {
+                    "scenario": "crowdsecurity/ssh-bf",
+                    "source": {"ip": "203.0.113.20"},
+                    "created_at": "2026-01-01T00:00:01Z",
+                },
+            ]
+        )
+        for finding in data["findings"]:
+            self.assertIn("cn", finding)
+            self.assertIsInstance(finding["cn"], str)
+        self.assertIn("mitre", data)
+        self.assertTrue(data["mitre"]["techniques"])
+        sqli = next(item for item in data["findings"] if "sqli" in item["scenario"])
+        self.assertEqual(sqli["cn"], "BR")
+        self.assertIn("T1190", sqli["attack"])
+        brute = next(item for item in data["findings"] if "ssh" in item["scenario"])
+        self.assertEqual(brute["cn"], "")
+        self.assertIn("T1110", brute["attack"])
 
     def test_stix_bundle_type(self) -> None:
         payload = correlate.correlate(

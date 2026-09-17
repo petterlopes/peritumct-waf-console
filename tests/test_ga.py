@@ -25,6 +25,7 @@ class LoadSnapshotTests(unittest.TestCase):
         self.assertEqual(snap["property"], "G-EWYYWP65FN")
         self.assertEqual(snap["hosts"], [])
         self.assertEqual(snap["countries"], [])
+        self.assertFalse(ga.public(snap)["contributes"])
 
     def test_load_from_temp_file_countries_hosts(self) -> None:
         path = _write_snapshot(
@@ -133,6 +134,20 @@ class AttachMapTests(unittest.TestCase):
             self.assertNotIn("token", blob.lower())
         finally:
             Path(path).unlink(missing_ok=True)
+
+
+class ContributesTests(unittest.TestCase):
+    def test_contributes_false_when_empty(self) -> None:
+        with patch.dict(os.environ, {"WAF_GA_SNAPSHOT_FILE": ""}, clear=False):
+            snap = ga.load_snapshot()
+        self.assertFalse(ga.public(snap)["contributes"])
+        self.assertFalse(ga.public(snap)["configured"])
+
+    def test_contributes_true_when_example_snapshot_loaded(self) -> None:
+        example = Path(__file__).resolve().parents[1] / "examples" / "ga-snapshot.example.json"
+        snap = ga.load_snapshot(str(example))
+        self.assertTrue(snap["configured"])
+        self.assertTrue(ga.public(snap)["contributes"])
 
 
 if __name__ == "__main__":

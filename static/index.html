@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
-  <link rel="stylesheet" href="/waf/app.css?v=2.1">
+  <link rel="stylesheet" href="/waf/app.css?v=2.3">
 </head>
 <body>
   <aside class="rail">
@@ -40,6 +40,10 @@
       <button class="nav-btn" data-view="owasp">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5.1 3.4 9.8 8 11 4.6-1.2 8-5.9 8-11V6l-8-4zm-1 14-3.5-3.5 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7z"/></svg>
         <span data-i18n="nav.owasp">OWASP</span>
+      </button>
+      <button class="nav-btn" data-view="mitre">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h8v6H3V5zm10 0h8v6h-8V5zM3 13h8v6H3v-6zm10 0h8v6h-8v-6z"/></svg>
+        <span data-i18n="nav.mitre">MITRE</span><span class="nav-tag">ATT&amp;CK</span>
       </button>
       <button class="nav-btn" data-view="rules">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
@@ -77,8 +81,13 @@
       <div class="top-actions">
         <label class="search">
           <span class="sr-only" data-i18n="search">Filter</span>
-          <input id="filterBox" type="search" data-i18n-placeholder="search_ph" placeholder="Filter IP or scenario" autocomplete="off">
+          <input id="filterBox" type="search" data-i18n-placeholder="search_ph" placeholder="Filter IP, scenario, or ISO" autocomplete="off" title="Map country selection filters all tabs.">
         </label>
+        <div id="mapFilterChip" class="filter-chip hidden">
+          <span id="mapFilterLabel"></span>
+          <button type="button" id="mapFilterClear" data-i18n="map.filter_clear">Clear</button>
+        </div>
+        <p class="hint search-hint" data-i18n="search_hint">Map country selection filters all tabs.</p>
         <div class="clock" id="clock">--:--:--</div>
         <div class="lang-switch" role="group" aria-label="Language">
           <button type="button" id="langEn" data-i18n="lang.en">EN</button>
@@ -144,11 +153,18 @@
           </div>
         </article>
 
+        <article class="card glow-cyan" id="mitreOverviewCard" role="button" tabindex="0">
+          <div class="card-head"><h2 data-i18n="nav.mitre">MITRE</h2><span class="tag active">ATT&amp;CK</span></div>
+          <div id="mitreOverview" class="mitre-grid"></div>
+          <p class="hint" data-i18n="mitre.open">Open the MITRE tab for full ATT&amp;CK correlation.</p>
+        </article>
+
         <article class="card glow-cyan span-3">
           <div class="card-head"><h2 data-i18n="card.world">World map</h2><span class="tag active" data-i18n="tag.geo">LAPI geo</span></div>
           <div class="map-wrap"><svg id="mapMini" viewBox="0 0 960 500" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Alert map"></svg></div>
           <p id="mapMiniNote" data-i18n="map.note">Robinson map of LAPI alert coordinates. No third-party GeoIP.</p>
         </article>
+        <div id="gaOverview"></div>
       </div>
     </section>
 
@@ -292,11 +308,7 @@
         <p class="hint" data-i18n="owasp.hint">CrowdSec LAPI/AppSec findings mapped to OWASP Top 10:2021. Local enrichment only. File export to MISP, TheHive, OpenCTI STIX — no outbound push.</p>
         <div class="owasp-grid" id="owaspTiles"></div>
       </article>
-      <article class="card" id="gaPrecision">
-        <div class="card-head"><h2 data-i18n="ga.title">GA4 precision</h2><span class="tag" data-i18n="map.ga">GA</span></div>
-        <p class="hint" id="gaPrecisionNote" data-i18n="ga.note">GA4 sessions are real-user volume by country and host. LAPI/GA density separates scanner-heavy countries from user-impact risk. Map coordinates stay CrowdSec LAPI.</p>
-        <div id="gaPrecisionBody"></div>
-      </article>
+      <div id="gaPrecision"></div>
       <article class="card">
         <div class="card-head">
           <h2 data-i18n="owasp.findings">Correlated findings</h2>
@@ -345,6 +357,45 @@
           </div>
         </article>
       </div>
+    </section>
+
+    <section id="view-mitre" class="view hidden">
+      <article class="card glow-cyan">
+        <div class="card-head">
+          <h2 data-i18n="mitre.title">MITRE ATT&amp;CK</h2>
+          <span class="tag active">Enterprise</span>
+        </div>
+        <p class="hint" data-i18n="mitre.local">Local ATT&amp;CK Enterprise catalog. No MITRE GitHub download at runtime.</p>
+        <p class="hint" data-i18n="mitre.filter_hint">Click a tactic or technique tile to filter findings. Map country selection filters all tabs.</p>
+        <div class="tactic-chips" id="mitreTactics"></div>
+        <div class="mitre-grid" id="mitreTiles"></div>
+      </article>
+      <div id="gaMitre"></div>
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="mitre.findings">Correlated findings</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="th.when">When</th>
+                <th data-i18n="th.ip">IP</th>
+                <th data-i18n="th.cc">CC</th>
+                <th data-i18n="th.scenario">Scenario</th>
+                <th data-i18n="owasp.attack">ATT&amp;CK</th>
+                <th data-i18n="owasp.col">OWASP</th>
+                <th data-i18n="owasp.confidence">Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="mitreFindings"></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="mitre.uncovered">Uncovered techniques</h2></div>
+        <div id="mitreUncovered" class="pills"></div>
+      </article>
     </section>
 
     <section id="view-rules" class="view hidden">
@@ -475,9 +526,9 @@
     </section>
   </main>
   <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
-  <script src="/waf/world.js?v=2.1"></script>
-  <script src="/waf/i18n.js?v=2.1"></script>
-  <script src="/waf/map.js?v=2.1"></script>
-  <script src="/waf/app.js?v=2.1"></script>
+  <script src="/waf/world.js?v=2.3"></script>
+  <script src="/waf/i18n.js?v=2.3"></script>
+  <script src="/waf/map.js?v=2.3"></script>
+  <script src="/waf/app.js?v=2.3"></script>
 </body>
 </html>
