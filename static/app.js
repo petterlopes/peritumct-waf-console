@@ -14,18 +14,7 @@ function viewTitles() {
     engine: t("nav.engine", "Engine")
   }
 }
-const LAND = [
-  "M78 92l38-18 54 8 22 28-10 22-48 10-36-8z",
-  "M178 78l92-22 48 18 18 42-28 38-86 12-52-20z",
-  "M318 108l70-8 38 22-8 48-54 18-52-14z",
-  "M410 128l86 6 48 36-22 58-74 22-62-18-18-48z",
-  "M548 148l92-18 46 28 8 52-40 36-86 8-38-24z",
-  "M178 198l42 8 18 48-14 62-46 8-28-36z",
-  "M248 248l38-6 28 22 6 48-32 18-40-10z",
-  "M520 248l58 4 22 28-8 38-48 10-36-16z",
-  "M610 268l48 12 18 42-28 18-44-8z",
-  "M690 292l42 8 8 28-36 18-28-12z"
-]
+
 let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null }
 
 function fmtTime(ts) {
@@ -134,23 +123,38 @@ function stack(items) {
 }
 
 function project(lat, lon) {
-  return [((Number(lon) + 180) / 360) * 800, ((90 - Number(lat)) / 180) * 400]
+  const x = ((Number(lon) + 180) / 360) * 800
+  const y = ((90 - Number(lat)) / 180) * 400
+  return [x, y]
+}
+
+function ringPath(ring) {
+  if (!ring || ring.length < 3) return ""
+  const pts = ring.map(([lon, lat]) => project(lat, lon))
+  return "M " + pts.map((p) => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L ") + " Z"
 }
 
 function renderMap(svg, payload) {
   if (!svg) return
   const points = (payload && payload.points) || []
   const meridians = []
-  for (let x = 0; x <= 800; x += 80) meridians.push(`<line x1="${x}" y1="0" x2="${x}" y2="400" class="graticule"/>`)
-  for (let y = 0; y <= 400; y += 40) meridians.push(`<line x1="0" y1="${y}" x2="800" y2="${y}" class="graticule"/>`)
-  const land = LAND.map((d) => `<path class="land" d="${d}"/>`).join("")
+  for (let x = 80; x < 800; x += 80) meridians.push(`<line x1="${x}" y1="0" x2="${x}" y2="400" class="graticule"/>`)
+  for (let y = 40; y < 400; y += 40) meridians.push(`<line x1="0" y1="${y}" x2="800" y2="${y}" class="graticule"/>`)
+  meridians.push(`<line x1="0" y1="200" x2="800" y2="200" class="graticule equator"/>`)
+  const land = ((typeof WORLD_RINGS === "undefined" ? [] : WORLD_RINGS) || []).map((ring) => `<path class="land" d="${ringPath(ring)}"/>`).join("")
   const dots = points.map((p) => {
-    const [x, y] = project(p.lat, p.lon)
-    const r = Math.min(8, 3 + Math.log10(1 + Number(p.capacity || 1)) * 2)
+    const lat = Number(p.lat)
+    const lon = Number(p.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return ""
+    const [x, y] = project(lat, lon)
+    if (x < -8 || x > 808 || y < -8 || y > 408) return ""
+    const r = Math.min(7, 2.6 + Math.log10(1 + Number(p.capacity || 1)) * 2)
     const cls = p.approx ? "geo-dot approx" : "geo-dot"
     const title = `${p.ip || ""} ${p.cn || ""} ${p.scenario || ""}`.trim()
     return `<circle class="${cls}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"><title>${title}</title></circle>`
   }).join("")
+  svg.setAttribute("viewBox", "0 0 800 400")
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet")
   svg.innerHTML = `<rect class="ocean" width="800" height="400"/>${meridians.join("")}${land}${dots}`
 }
 

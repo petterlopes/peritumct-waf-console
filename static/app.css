@@ -82,7 +82,24 @@ button[type="submit"] { background: #143445; color: var(--cyan); }
 }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .span-3 { grid-column: 1 / -1; min-height: auto; }
-
+#view-overview .span-3.card { min-height: 0; }
+.map-wrap {
+  position: relative;
+  aspect-ratio: 2 / 1;
+  min-height: 240px;
+  background: #07101c;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.map-wrap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.map-lg { min-height: 360px; }
 .card {
   background: #10182a;
   border: 1px solid var(--stroke);
@@ -135,12 +152,10 @@ button[type="submit"] { background: #143445; color: var(--cyan); }
   font-size: 10px; color: var(--muted); text-align: center; padding: 4px;
 }
 
-.map-wrap { background: #07101c; border: 1px solid var(--stroke); border-radius: 16px; overflow: hidden; }
-.map-wrap svg { width: 100%; height: auto; display: block; }
-.map-lg { min-height: 320px; }
 .land { fill: #14314f; stroke: #2a5d86; stroke-width: 0.6; }
 .ocean { fill: #081422; }
 .graticule { fill: none; stroke: #1a3050; stroke-width: 0.4; }
+.graticule.equator { stroke: #2a5d86; stroke-width: 0.8; }
 .geo-dot { fill: var(--cyan); stroke: #041018; stroke-width: 1; }
 .geo-dot.approx { fill: var(--orange); }
 

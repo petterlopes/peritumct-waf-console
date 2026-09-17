@@ -203,7 +203,7 @@ def http_probe(host: str, server: str) -> dict:
     try:
         sock = ctx.wrap_socket(socket.create_connection((server, 443), timeout=8), server_hostname=host)
         sock.sendall(
-            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.0\r\n"
+            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.1\r\n"
             f"Accept-Encoding: identity\r\nConnection: close\r\n\r\n".encode()
         )
         data = b""
@@ -238,7 +238,7 @@ def engine_status() -> dict:
         "include_large_uploads": bool(re.search(r"INCLUDE_LARGE_UPLOADS\s*[:=]\s*(1|true|yes)", acquis, re.I)),
         "creds_present": CREDS_PATH.is_file(),
         "bouncer_key_present": bool(bouncer_key()),
-        "version": "waf-console/1.0.0",
+        "version": "waf-console/1.0.1",
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
     }
 
@@ -574,7 +574,7 @@ def add_ban(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "waf-console/1.0.0"
+    server_version = "waf-console/1.0.1"
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -622,7 +622,7 @@ class Handler(BaseHTTPRequestHandler):
             name = path.split("/")[-1]
             ctype = "text/css" if name.endswith(".css") else "application/javascript" if name.endswith(".js") else "application/octet-stream"
             return self._static(name, ctype)
-        if path in ("/app.css", "/app.js", "/i18n.js"):
+        if path in ("/app.css", "/app.js", "/i18n.js", "/world.js"):
             ctype = "text/css" if path.endswith(".css") else "application/javascript"
             return self._static(path.lstrip("/"), ctype)
         if path.startswith("/locales/"):

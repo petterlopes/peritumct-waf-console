@@ -3,7 +3,7 @@ const I18N = {
   defaultLocale: "en",
   fallback: "en",
   supported: ["en", "pt-BR"],
-  storageKey: "waf-locale",
+  storageKey: "waf-locale-v2",
   dict: {},
   locale: "en"
 }
@@ -11,8 +11,6 @@ const I18N = {
 function detectLocale() {
   const stored = localStorage.getItem(I18N.storageKey)
   if (stored && I18N.supported.includes(stored)) return stored
-  const nav = (navigator.language || "en").toLowerCase()
-  if (nav.startsWith("pt")) return "pt-BR"
   return I18N.defaultLocale
 }
 

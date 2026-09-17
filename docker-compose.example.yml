@@ -6,7 +6,7 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:1.0.0
+    image: peritumct-waf-console:1.0.1
     container_name: waf-console
     network_mode: host
     environment:
