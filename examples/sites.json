@@ -1,0 +1,24 @@
+{
+  "hosts": ["www.example.com", "shop.example.com"],
+  "sites": {
+    "www.example.com": {
+      "kind": "web",
+      "chain": "security-chain",
+      "bouncer": true,
+      "appsec": true,
+      "in_scope": true,
+      "note": "Keep /waf/ outside the CrowdSec bouncer (anti-lockout)."
+    },
+    "shop.example.com": {
+      "kind": "web",
+      "chain": "security-chain",
+      "bouncer": true,
+      "appsec": true,
+      "in_scope": true
+    }
+  },
+  "out_of_scope": {
+    "grpc.example.com": "gRPC / h2c — CrowdSec AppSec must stay off",
+    "sso.example.com": "OIDC / iframe — CrowdSec AppSec must stay off"
+  }
+}

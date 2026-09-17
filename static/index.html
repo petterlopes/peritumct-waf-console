@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>WAF Console · CrowdSec</title>
+  <link rel="stylesheet" href="/waf/app.css">
+</head>
+<body>
+  <aside class="rail">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <strong>PERITUM</strong>
+        <small data-i18n="brand_sub">WAF Console</small>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-btn active" data-view="overview">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9zm0 7h6v-5H4v5zm8 0h8V11h-8v9zm0-16v5h8V4h-8z"/></svg>
+        <span data-i18n="nav.overview">Overview</span>
+      </button>
+      <button class="nav-btn" data-view="sites">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5-10-5zm0 9L4.5 7.4v6.2L12 18l7.5-4.4V7.4L12 11z"/></svg>
+        <span data-i18n="nav.sites">Policies</span>
+      </button>
+      <button class="nav-btn" data-view="map">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 .01 20.01A10 10 0 0 0 12 2zm7.9 9h-3.2a15 15 0 0 0-1.4-6 8.1 8.1 0 0 1 4.6 6zM12 4.1c.9 1.2 1.6 3.3 1.9 6.9H10c.3-3.6 1-5.7 2-6.9zM4.1 13h3.2a15 15 0 0 0 1.4 6 8.1 8.1 0 0 1-4.6-6zM8.7 11H4.1a8.1 8.1 0 0 1 4.6-6 15 15 0 0 0-1.4 6zm2.4 8.9c-.9-1.2-1.6-3.3-1.9-6.9h3.9c-.3 3.6-1 5.7-2 6.9zM15.3 13h3.6a8.1 8.1 0 0 1-4.6 6 15 15 0 0 0 1-6z"/></svg>
+        <span data-i18n="nav.map">Map</span>
+      </button>
+      <button class="nav-btn" data-view="decisions">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10.5C16.6 21.4 20 17 20 12V6l-8-4zm-1 14-3.5-3.5 1.4-1.4L11 13.2l4.1-4.1 1.4 1.4L11 16z"/></svg>
+        <span data-i18n="nav.decisions">Decisions</span>
+      </button>
+      <button class="nav-btn" data-view="alerts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2zm6-6V11a6 6 0 1 0-12 0v5L4 18v1h16v-1l-2-2z"/></svg>
+        <span data-i18n="nav.alerts">Alerts</span>
+      </button>
+      <button class="nav-btn" data-view="rules">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+        <span data-i18n="nav.rules">Rules</span>
+      </button>
+      <button class="nav-btn" data-view="allowlists">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4zm-1 16-4-4 1.4-1.4L11 14.2l5.6-5.6L18 10l-7 7z"/></svg>
+        <span data-i18n="nav.allowlists">Allowlists</span>
+      </button>
+      <button class="nav-btn" data-view="metrics">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17h3v4H3v-4zm5-6h3v10H8V11zm5-5h3v15h-3V6zm5 8h3v7h-3v-7z"/></svg>
+        <span data-i18n="nav.metrics">Metrics</span>
+      </button>
+      <button class="nav-btn" data-view="domains">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 .01 20.01A10 10 0 0 0 12 2zm7.9 9h-3.2a15 15 0 0 0-1.4-6 8.1 8.1 0 0 1 4.6 6zM12 4.1c.9 1.2 1.6 3.3 1.9 6.9H10c.3-3.6 1-5.7 2-6.9zM4.1 13h3.2a15 15 0 0 0 1.4 6 8.1 8.1 0 0 1-4.6-6zM8.7 11H4.1a8.1 8.1 0 0 1 4.6-6 15 15 0 0 0-1.4 6zm2.4 8.9c-.9-1.2-1.6-3.3-1.9-6.9h3.9c-.3 3.6-1 5.7-2 6.9zM15.3 13h3.6a8.1 8.1 0 0 1-4.6 6 15 15 0 0 0 1-6z"/></svg>
+        <span data-i18n="nav.domains">Domains</span>
+      </button>
+      <button class="nav-btn" data-view="engine">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L15 3H9l-.3 2.9a8 8 0 0 0-1.7 1L4.6 6 2.6 9.5 4.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 1.7 1L9 21h6l.3-2.9a8 8 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+        <span data-i18n="nav.engine">Engine</span>
+      </button>
+    </nav>
+    <div class="rail-foot">
+      <span class="dot" id="liveDot"></span>
+      <span id="liveLabel" data-i18n="live.connecting">Connecting…</span>
+    </div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div>
+        <h1 id="viewTitle" data-i18n="nav.overview">Overview</h1>
+        <p class="sub" data-i18n="subtitle">CrowdSec LAPI on loopback · fail-closed · CRS OOB log-only · admin network only</p>
+      </div>
+      <div class="top-actions">
+        <label class="search">
+          <span class="sr-only" data-i18n="search">Filter</span>
+          <input id="filterBox" type="search" data-i18n-placeholder="search_ph" placeholder="Filter IP or scenario" autocomplete="off">
+        </label>
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" id="langEn" data-i18n="lang.en">EN</button>
+          <button type="button" id="langPt" data-i18n="lang.pt">PT</button>
+        </div>
+        <button type="button" class="ghost" id="refreshBtn" data-i18n="refresh">Refresh</button>
+      </div>
+    </header>
+
+    <section id="view-overview" class="view">
+      <div class="widget-grid">
+        <article class="card glow-cyan">
+          <div class="card-head"><h2 data-i18n="card.dashboard">Dashboard</h2><span class="tag active" data-i18n="tag.active">Active</span></div>
+          <svg id="sparkCyan" viewBox="0 0 320 110" class="spark" preserveAspectRatio="none"></svg>
+          <p data-i18n="dash.alerts_24h">LAPI alerts in the last 24 h</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="card.data">Data</h2><span class="tag tracking" data-i18n="tag.tracking">Tracking</span></div>
+          <div class="data-split">
+            <svg id="bars" viewBox="0 0 180 110" class="bars" preserveAspectRatio="none"></svg>
+            <div class="mini-ring">
+              <svg viewBox="0 0 36 36" class="ring">
+                <path class="ring-bg" d="M18 2.5a15.5 15.5 0 1 1 0 31 15.5 15.5 0 1 1 0-31"/>
+                <path id="localRing" class="ring-fg cyan" stroke-dasharray="0,100" d="M18 2.5a15.5 15.5 0 1 1 0 31 15.5 15.5 0 1 1 0-31"/>
+              </svg>
+              <div class="ring-label"><span id="kpiDecisions">—</span></div>
+            </div>
+          </div>
+          <p data-i18n="dash.local_bans">Local bans (community CAPI omitted)</p>
+        </article>
+
+        <article class="card glow-green">
+          <div class="card-head"><h2 data-i18n="card.kperf">Key Performance</h2><span class="tag monitoring" data-i18n="tag.monitoring">Monitoring</span></div>
+          <div class="kperf">
+            <div class="mini-ring large">
+              <svg viewBox="0 0 36 36" class="ring">
+                <path class="ring-bg" d="M18 2.5a15.5 15.5 0 1 1 0 31 15.5 15.5 0 1 1 0-31"/>
+                <path id="domRing" class="ring-fg green" stroke-dasharray="0,100" d="M18 2.5a15.5 15.5 0 1 1 0 31 15.5 15.5 0 1 1 0-31"/>
+              </svg>
+              <div class="ring-label"><span id="kpiDomains">—</span></div>
+            </div>
+            <ul class="progress" id="engineProgress"></ul>
+          </div>
+        </article>
+
+        <article class="card glow-green">
+          <div class="card-head"><h2 data-i18n="card.overview">Overview</h2><span class="tag active" data-i18n="tag.active">Active</span></div>
+          <svg id="sparkGreen" viewBox="0 0 320 110" class="spark" preserveAspectRatio="none"></svg>
+          <p data-i18n="dash.events_hour">Event volume per hour (area)</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="card.edge">Edge map</h2><span class="tag" data-i18n="tag.hosts">Hosts</span></div>
+          <div class="edge-map" id="edgeMap"></div>
+        </article>
+
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="card.rta">Real Time Activity</h2><span class="tag tracking" data-i18n="tag.tracking">Tracking</span></div>
+          <div class="rta">
+            <div class="rta-rings" id="rtaRings"></div>
+            <div class="ip-pad" id="ipPad"></div>
+          </div>
+        </article>
+
+        <article class="card glow-cyan span-3">
+          <div class="card-head"><h2 data-i18n="card.world">World map</h2><span class="tag active" data-i18n="tag.geo">LAPI geo</span></div>
+          <div class="map-wrap"><svg id="mapMini" viewBox="0 0 800 400" role="img" aria-label="Alert map"></svg></div>
+          <p id="mapMiniNote" data-i18n="map.note">Coordinates from the CrowdSec alert. No third-party GeoIP.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="view-map" class="view hidden">
+      <article class="card glow-cyan">
+        <div class="card-head"><h2 data-i18n="map.geo_alerts">Georeferenced alerts</h2><span class="tag">lat/lon LAPI</span></div>
+        <div class="map-wrap map-lg"><svg id="mapFull" viewBox="0 0 800 400" role="img" aria-label="Mapa mundial de alertas"></svg></div>
+      </article>
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="map.countries">Countries</h2></div>
+          <div id="mapCountries" class="stack-list"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="map.recent">Recent points</h2></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th data-i18n="th.ip">IP</th><th data-i18n="th.cc">CC</th><th data-i18n="th.asn">ASN</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.geo">Geo</th></tr></thead>
+              <tbody id="mapPoints"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="view-sites" class="view hidden">
+      <article class="card glow-cyan">
+        <div class="card-head"><h2 data-i18n="sites.scope">WAF scope</h2><span class="tag active" data-i18n="tag.hosts">Hosts</span></div>
+        <p class="hint" data-i18n="sites.hint">Per-FQDN AppSec filters (allow path, skip in-band rule, host bypass). Keep gRPC/OIDC hosts out of scope. CRS in-band, fail-closed and INCLUDE_LARGE_UPLOADS are not controllable here.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.host">Host</th><th data-i18n="th.kind">Kind</th><th data-i18n="th.chain">Chain</th><th data-i18n="th.bouncer">Bouncer</th><th data-i18n="th.filters">Filters</th></tr></thead>
+            <tbody id="sitesBody"></tbody>
+          </table>
+        </div>
+        <p class="hint" id="sitesOut"></p>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2 id="policyFormTitle" data-i18n="policy.new">New policy</h2></div>
+        <form id="filterForm" class="stack-form">
+          <input type="hidden" name="id" id="policyId" value="">
+          <label><span data-i18n="policy.name">Name</span>
+            <input name="name" id="policyName" placeholder="ads-path-allow" autocomplete="off">
+          </label>
+          <label><span data-i18n="policy.host">Host</span>
+            <select name="host" id="filterHost"></select>
+          </label>
+          <label><span data-i18n="policy.action">Action</span>
+            <select name="action">
+              <option value="allow_match" data-i18n="policy.allow">Allow path (on_match allow)</option>
+              <option value="skip_rule" data-i18n="policy.skip">Disable in-band rule on this host</option>
+              <option value="bypass_host" data-i18n="policy.bypass">Bypass AppSec for the whole host</option>
+            </select>
+          </label>
+          <label><span data-i18n="policy.path">Path prefix (required for allow; optional for skip)</span>
+            <input name="path_prefix" placeholder="/ads.txt or /wp-admin/admin-ajax.php" autocomplete="off">
+          </label>
+          <label><span data-i18n="policy.rule">Hub rule (skip_rule only)</span>
+            <input name="rule" id="filterRule" list="ruleNames" placeholder="crowdsecurity/generic-wordpress-uploads-php" autocomplete="off">
+            <datalist id="ruleNames"></datalist>
+          </label>
+          <label><span data-i18n="policy.reason">Reason</span>
+            <input name="reason" placeholder="false positive / allowlist path" required>
+          </label>
+          <label class="check"><input type="checkbox" name="confirm"> <span data-i18n="policy.confirm">I confirm bypass_host (AppSec will stop blocking this FQDN)</span></label>
+          <button type="submit" id="filterSubmit" data-i18n="policy.create">Create policy (SIGHUP CrowdSec)</button>
+          <button type="button" id="filterCancel" class="ghost hidden" data-i18n="policy.cancel">Cancel edit</button>
+        </form>
+        <p class="hint" data-i18n="policy.hint">Create / edit / delete AppSec policies. Apply sends SIGHUP to the CrowdSec engine (does not restart the orchestrator). If AppSec fails, the previous YAML is restored.</p>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="policy.active">Active policies</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.name">Name</th><th data-i18n="th.host">Host</th><th data-i18n="th.action">Action</th><th data-i18n="th.path_rule">Path / rule</th><th data-i18n="th.reason">Reason</th><th></th></tr></thead>
+            <tbody id="filtersBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-decisions" class="view hidden">
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="decisions.title">Local decisions</h2>
+          <div class="inline wrap">
+            <form id="unbanForm" class="inline">
+              <input name="ip" data-i18n-placeholder="decisions.unban_ph" placeholder="IP to unban" autocomplete="off">
+              <button type="submit">Unban</button>
+            </form>
+            <form id="banForm" class="inline">
+              <input name="ip" data-i18n-placeholder="decisions.ban_ph" placeholder="IP to ban" autocomplete="off">
+              <select name="duration">
+                <option value="1h">1h</option>
+                <option value="4h" selected>4h</option>
+                <option value="24h">24h</option>
+                <option value="168h">7d</option>
+              </select>
+              <input name="reason" data-i18n-placeholder="decisions.reason_ph" placeholder="reason" autocomplete="off">
+              <button type="submit">Ban</button>
+            </form>
+          </div>
+        </div>
+        <p class="hint" data-i18n="decisions.hint">Only crowdsec/cscli origins. The CAPI community blocklist is omitted. Unban by IP still deletes the LAPI decision. Fail-closed and CRS OOB stay unchanged.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.value">Value</th><th data-i18n="th.origin">Origin</th><th data-i18n="th.type">Type</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.until">Until</th><th></th></tr></thead>
+            <tbody id="decisionsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-alerts" class="view hidden">
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="alerts.title">Recent alerts</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.when">When</th><th data-i18n="th.ip">IP</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.capacity">Capacity</th></tr></thead>
+            <tbody id="alertsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-rules" class="view hidden">
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="rules.profiles">Profiles</h2><span class="tag">read-only</span></div>
+          <div id="rulesProfiles" class="stack-list"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="rules.policy">Operator policy</h2></div>
+          <div id="rulesPolicy" class="pills"></div>
+          <p class="hint" data-i18n="rules.policy_hint">The UI never enables CRS in-band, INCLUDE_LARGE_UPLOADS or fail-closed changes.</p>
+        </article>
+      </div>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="rules.appsec">AppSec acquis</h2><span class="tag">127.0.0.1:7422</span></div>
+        <pre id="rulesAppsec" class="code"></pre>
+      </article>
+      <div id="hubPanels" class="host-tiles hub-tiles"></div>
+    </section>
+
+    <section id="view-allowlists" class="view hidden">
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="allow.title">Allowlists and operators</h2>
+          <div class="inline wrap">
+            <form id="checkForm" class="inline">
+              <input name="ip" data-i18n-placeholder="allow.check_ph" placeholder="Check IP" autocomplete="off">
+              <button type="submit" data-i18n="allow.check">Check</button>
+            </form>
+            <form id="allowAddForm" class="inline">
+              <input name="cidr" data-i18n-placeholder="allow.cidr_ph" placeholder="CIDR (e.g. 203.0.113.10/32)" autocomplete="off">
+              <input name="reason" data-i18n-placeholder="decisions.reason_ph" placeholder="reason" autocomplete="off">
+              <button type="submit">Allow</button>
+            </form>
+            <form id="allowDelForm" class="inline">
+              <input name="cidr" data-i18n-placeholder="allow.remove_ph" placeholder="CIDR to remove" autocomplete="off">
+              <button type="submit" data-i18n="allow.remove">Remove</button>
+            </form>
+          </div>
+        </div>
+        <p class="hint" id="allowNote" data-i18n="allow.note">LAPI /v1/allowlists plus optional parser file. Writing allowlists requires cscli on the CrowdSec host.</p>
+        <pre id="checkResult" class="code hidden"></pre>
+        <div class="grid-2">
+          <div>
+            <h2>LAPI</h2>
+            <div id="allowLapi" class="stack-list"></div>
+          </div>
+          <div>
+            <h2 data-i18n="allow.parser">Operator parser</h2>
+            <div id="allowParser" class="stack-list"></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-metrics" class="view hidden">
+      <div class="widget-grid">
+        <article class="card glow-cyan">
+          <div class="card-head"><h2 data-i18n="mx.local">Local decisions</h2></div>
+          <div class="kpi" id="mxLocal">—</div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="mx.capi">CAPI (omitted in UI)</h2></div>
+          <div class="kpi" id="mxCapi">—</div>
+        </article>
+        <article class="card glow-green">
+          <div class="card-head"><h2 data-i18n="mx.blocks">AppSec blocks</h2></div>
+          <div class="kpi" id="mxBlock">—</div>
+        </article>
+      </div>
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="mx.origins">Prometheus origins</h2></div>
+          <div id="mxOrigins" class="stack-list"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="mx.top">Top alerts</h2></div>
+          <div id="mxAlerts" class="stack-list"></div>
+        </article>
+      </div>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="mx.gauges">CrowdSec gauges</h2><span class="tag">127.0.0.1:6060</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.metric">Metric</th><th data-i18n="th.value">Value</th></tr></thead>
+            <tbody id="metricsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-domains" class="view hidden">
+      <div class="host-tiles" id="hostTiles"></div>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="domains.health">Host health</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.host">Host</th><th data-i18n="th.origin">Origin</th><th data-i18n="th.public">Public</th></tr></thead>
+            <tbody id="domainsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-engine" class="view hidden">
+      <div class="grid-2">
+        <article class="card">
+          <h2 data-i18n="engine.policy">Operator policy</h2>
+          <ul class="policy">
+            <li data-i18n="engine.p1">LAPI and AppSec listen on 127.0.0.1 only</li>
+            <li data-i18n="engine.p2">Reverse proxy fail-closed (AppSec unreachable = block)</li>
+            <li data-i18n="engine.p3">CRS out-of-band: detect/log, do not ban</li>
+            <li data-i18n="engine.p4">This console does not go through the CrowdSec bouncer (anti-lockout)</li>
+            <li data-i18n="engine.p5">Access: overlay/VPN + loopback</li>
+            <li data-i18n="engine.p6">No orchestrator restart · no CRS in-band · no INCLUDE_LARGE_UPLOADS · no bot challenge</li>
+            <li data-i18n="engine.p7">Map uses LAPI geo only · Hub rules are read-only</li>
+            <li data-i18n="engine.p8">Mutations that change fail-closed/CRS in-band: none (forbidden in the UI)</li>
+            <li data-i18n="engine.p9">Operator control: per-site policies, CIDR allowlist, IP ban/unban</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2 data-i18n="engine.state">Engine state</h2>
+          <pre id="enginePre" class="code"></pre>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script src="/waf/i18n.js"></script>
+  <script src="/waf/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+CrowdSec
+========
+
+This operator console talks to CrowdSec, an open-source security engine
+licensed under the MIT License.
+
+Upstream: https://github.com/crowdsecurity/crowdsec
+License tab: https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file
+Release used in integration docs: https://github.com/crowdsecurity/crowdsec/releases#release-v1.8.1
+Full license text: third_party/crowdsec/LICENSE
+
+Copyright (c) 2020-2023 Crowdsec
+
+The WAF console itself is MIT Copyright (c) 2026 PeritumCT — see LICENSE.

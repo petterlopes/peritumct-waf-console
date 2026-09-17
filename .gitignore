@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+docker-compose.yml
+.env
+*.log
+audit.jsonl
+site-filters.json
+sites.json
+!examples/sites.json

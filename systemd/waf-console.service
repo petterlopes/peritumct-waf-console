@@ -1,0 +1,17 @@
+[Unit]
+Description=PeritumCT CrowdSec WAF console (loopback)
+Documentation=https://github.com/peritumct/peritumct-waf-console
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/peritumct-waf-console
+ExecStart=/usr/bin/docker compose -f /opt/peritumct-waf-console/docker-compose.yml up -d --build
+ExecStop=/usr/bin/docker compose -f /opt/peritumct-waf-console/docker-compose.yml down
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

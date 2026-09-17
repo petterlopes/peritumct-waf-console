@@ -1,0 +1,39 @@
+# Example compose. Bind loopback only. Do not publish LAPI/AppSec.
+# Copy examples/sites.json to the control volume before first start.
+#
+# Policy apply (SIGHUP CrowdSec) needs pid: host and a writable AppSec config
+# mount. Drop pid: host if this replica is read-only.
+services:
+  waf-console:
+    build: .
+    image: peritumct-waf-console:1.0.0
+    container_name: waf-console
+    network_mode: host
+    environment:
+      WAF_BIND: "127.0.0.1"
+      WAF_PORT: "18990"
+      CROWDSEC_CREDS: /etc/crowdsec/local_api_credentials.yaml
+      CROWDSEC_PROFILES: /etc/crowdsec/profiles.yaml
+      CROWDSEC_CONFIG: /etc/crowdsec
+      CROWDSEC_BOUNCER_KEY: /run/lapi_key
+      CROWDSEC_METRICS: http://127.0.0.1:6060/metrics
+      CROWDSEC_CSCLI: /usr/bin/cscli
+      WAF_CONTROL: /var/lib/waf-control
+      WAF_SITES_FILE: /var/lib/waf-control/sites.json
+      WAF_ALLOWLIST: cso-operators
+      PUBLIC_IP: ""
+    volumes:
+      - crowdsec-config:/etc/crowdsec:ro
+      - crowdsec-appsec:/etc/crowdsec/appsec-configs
+      - crowdsec-acquis:/etc/crowdsec/acquis.d
+      - waf-control:/var/lib/waf-control
+      - ./examples/lapi_key.example:/run/lapi_key:ro
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+volumes:
+  crowdsec-config:
+  crowdsec-appsec:
+  crowdsec-acquis:
+  waf-control:
