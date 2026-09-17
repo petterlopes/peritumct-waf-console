@@ -12,7 +12,11 @@ loopback + admin VPN.
 | Policy documents (host, path, rule name, reason) | `WAF_CONTROL/site-filters.json` + AppSec YAML | WAF exceptions | Legitimate interest |
 | Audit JSONL (who did what) | `WAF_CONTROL/audit.jsonl` | Accountability | Legitimate interest |
 
-No advertising IDs, no third-party analytics, no third-party GeoIP service.
+No advertising IDs, no third-party analytics **in this console**, no third-party GeoIP service.
+
+An optional `WAF_GA_SNAPSHOT_FILE` is an operator-exported **aggregate** of public-site
+GA4 sessions by hostname and country (no `client_id`, no user IDs). The console never
+loads gtag, never calls the Google Data API, and never sends CrowdSec IPs to Google.
 
 ## Retention
 

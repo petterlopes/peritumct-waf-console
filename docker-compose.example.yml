@@ -6,7 +6,7 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:1.0.1
+    image: peritumct-waf-console:1.0.4
     container_name: waf-console
     network_mode: host
     environment:
@@ -22,6 +22,19 @@ services:
       WAF_SITES_FILE: /var/lib/waf-control/sites.json
       WAF_ALLOWLIST: cso-operators
       PUBLIC_IP: ""
+      # Optional edge marker + great-circle routes (operator-supplied, not GeoIP):
+      # WAF_EDGE_LAT: "49.452"
+      # WAF_EDGE_LON: "11.077"
+      # WAF_EDGE_LABEL: "edge"
+      # Optional CTI file-export status (never pushed; tokens never returned in JSON):
+      # WAF_MISP_URL: "https://misp.example.invalid"
+      # WAF_MISP_KEY: ""
+      # WAF_THEHIVE_URL: "https://thehive.example.invalid"
+      # WAF_THEHIVE_KEY: ""
+      # WAF_OPENCTI_URL: "https://opencti.example.invalid"
+      # WAF_OPENCTI_TOKEN: ""
+      # WAF_GA_SNAPSHOT_FILE: /var/lib/waf-control/ga-snapshot.json
+      # Never set GA measurement in the console process. Never gtag on /waf.
     volumes:
       - crowdsec-config:/etc/crowdsec:ro
       - crowdsec-appsec:/etc/crowdsec/appsec-configs

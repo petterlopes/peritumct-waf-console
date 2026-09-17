@@ -1,0 +1,15 @@
+{
+  "property": "G-EWYYWP65FN",
+  "window_days": 7,
+  "hosts": [
+    {"host": "hexaco.neurofocus.com.br", "sessions": 420},
+    {"host": "personalidade.neurofocus.com.br", "sessions": 310},
+    {"host": "periciacomputacional.com", "sessions": 860}
+  ],
+  "countries": [
+    {"cn": "BR", "sessions": 980},
+    {"cn": "US", "sessions": 240},
+    {"cn": "GB", "sessions": 18},
+    {"cn": "FR", "sessions": 42}
+  ]
+}

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.4 — 2026-09-17
+
+- Optional GA4 aggregate snapshot (`WAF_GA_SNAPSHOT_FILE`) for WAF finding precision (LAPI/GA threat density)
+- No Google Data API, no Measurement Protocol, no gtag on the console
+
+## 1.0.3 — 2026-09-17
+
+- OWASP Top 10:2021 correlation tab for CrowdSec LAPI/AppSec findings
+- OpenCTI-inspired local connectors (MISP / TheHive / ATT&CK / OpenCTI STIX file export; no outbound push)
+
+## 1.0.2 — 2026-09-17
+
+- Robinson country map (Natural Earth 110m, public domain) with LAPI choropleth, hover, pan/zoom, and optional edge routes
+
 ## 1.0.1 — 2026-09-17
 
 - Equirectangular world map: continent rings share the same projection as LAPI geo dots

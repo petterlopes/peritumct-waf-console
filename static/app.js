@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id)
-const views = ["overview", "sites", "map", "decisions", "alerts", "rules", "allowlists", "metrics", "domains", "engine"]
+const views = ["overview", "sites", "map", "decisions", "alerts", "owasp", "rules", "allowlists", "metrics", "domains", "engine"]
 function viewTitles() {
   return {
     overview: t("nav.overview", "Overview"),
@@ -7,6 +7,7 @@ function viewTitles() {
     map: t("nav.map", "Map"),
     decisions: t("nav.decisions", "Decisions"),
     alerts: t("nav.alerts", "Alerts"),
+    owasp: t("nav.owasp", "OWASP"),
     rules: t("nav.rules", "Rules"),
     allowlists: t("nav.allowlists", "Allowlists"),
     metrics: t("nav.metrics", "Metrics"),
@@ -15,7 +16,8 @@ function viewTitles() {
   }
 }
 
-let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null }
+let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null }
+let owaspSelected = ""
 
 function fmtTime(ts) {
   if (!ts) return "—"
@@ -122,42 +124,6 @@ function stack(items) {
   return items.map((it) => `<div class="stack-row"><span>${it.l}</span><b>${it.r}</b></div>`).join("")
 }
 
-function project(lat, lon) {
-  const x = ((Number(lon) + 180) / 360) * 800
-  const y = ((90 - Number(lat)) / 180) * 400
-  return [x, y]
-}
-
-function ringPath(ring) {
-  if (!ring || ring.length < 3) return ""
-  const pts = ring.map(([lon, lat]) => project(lat, lon))
-  return "M " + pts.map((p) => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L ") + " Z"
-}
-
-function renderMap(svg, payload) {
-  if (!svg) return
-  const points = (payload && payload.points) || []
-  const meridians = []
-  for (let x = 80; x < 800; x += 80) meridians.push(`<line x1="${x}" y1="0" x2="${x}" y2="400" class="graticule"/>`)
-  for (let y = 40; y < 400; y += 40) meridians.push(`<line x1="0" y1="${y}" x2="800" y2="${y}" class="graticule"/>`)
-  meridians.push(`<line x1="0" y1="200" x2="800" y2="200" class="graticule equator"/>`)
-  const land = ((typeof WORLD_RINGS === "undefined" ? [] : WORLD_RINGS) || []).map((ring) => `<path class="land" d="${ringPath(ring)}"/>`).join("")
-  const dots = points.map((p) => {
-    const lat = Number(p.lat)
-    const lon = Number(p.lon)
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return ""
-    const [x, y] = project(lat, lon)
-    if (x < -8 || x > 808 || y < -8 || y > 408) return ""
-    const r = Math.min(7, 2.6 + Math.log10(1 + Number(p.capacity || 1)) * 2)
-    const cls = p.approx ? "geo-dot approx" : "geo-dot"
-    const title = `${p.ip || ""} ${p.cn || ""} ${p.scenario || ""}`.trim()
-    return `<circle class="${cls}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"><title>${title}</title></circle>`
-  }).join("")
-  svg.setAttribute("viewBox", "0 0 800 400")
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet")
-  svg.innerHTML = `<rect class="ocean" width="800" height="400"/>${meridians.join("")}${land}${dots}`
-}
-
 function renderOverview(data) {
   const c = data.counts || {}
   $("kpiDecisions").textContent = c.decisions_local ?? c.decisions ?? "—"
@@ -208,16 +174,29 @@ function renderOverview(data) {
   while (pad.length < 9) pad.push("—")
   $("ipPad").innerHTML = pad.map((ip) => `<div class="ip-chip">${ip}</div>`).join("")
   const map = data.map || (cache.coverage && cache.coverage.map) || { points: [] }
-  renderMap($("mapMini"), map)
+  renderMap($("mapMini"), map, { interactive: false })
   if ($("mapMiniNote")) $("mapMiniNote").textContent = t("map.note")
   setLive(!data.error && eng.lapi_listen, data.error ? "LAPI: " + data.error : t("live.lapi_up"))
 }
 
 function renderMapView(payload) {
   const map = payload || { points: [], countries: [] }
-  renderMap($("mapFull"), map)
-  $("mapCountries").innerHTML = stack((map.countries || []).map((c) => ({ l: c.cn, r: c.count })))
-  $("mapPoints").innerHTML = (map.points || []).map((p) =>
+  mapUi.payload = map
+  renderMap($("mapFull"), map, { interactive: true })
+  const selected = mapUi.selected
+  $("mapCountries").innerHTML = (map.countries || []).map((c) => {
+    const active = selected && selected === c.cn ? " active" : ""
+    const name = (typeof countryMeta === "function" ? countryMeta(c.cn).name : c.cn)
+    const gaBit = (c.ga_sessions != null) ? (" · " + t("map.ga", "GA") + " " + c.ga_sessions) : ""
+    const vclass = c.ga_verdict ? " ga-" + c.ga_verdict : ""
+    return `<button type="button" class="stack-row country-row${active}${vclass}" data-iso="${c.cn}"><span>${name}</span><b>${c.count}${gaBit}</b></button>`
+  }).join("") || `<p class="hint">${t("empty", "no data")}</p>`
+  $("mapCountries").onclick = (ev) => {
+    const btn = ev.target.closest("[data-iso]")
+    if (btn) selectCountry(btn.getAttribute("data-iso"))
+  }
+  const points = (map.points || []).filter((p) => !selected || p.cn === selected)
+  $("mapPoints").innerHTML = points.map((p) =>
     `<tr><td><code>${p.ip || ""}</code></td><td>${p.cn || ""}</td><td>${p.as_name || ""}</td><td>${p.scenario || ""}</td><td>${p.approx ? t("centroide") : "LAPI"}</td></tr>`
   ).join("") || `<tr><td colspan="5">${t("no_geo")}</td></tr>`
 }
@@ -320,9 +299,13 @@ function applyCoverage(coverage) {
     cache.sites = coverage.sites
     renderSites(coverage.sites)
   }
+  if (coverage.correlation) {
+    cache.correlation = coverage.correlation
+    renderOwasp(coverage.correlation)
+  }
   if (cache.overview) {
     cache.overview.map = coverage.map
-    renderMap($("mapMini"), coverage.map)
+    renderMap($("mapMini"), coverage.map, { interactive: false })
   }
 }
 
@@ -372,6 +355,91 @@ function renderAlerts(items) {
   </tr>`).join("") || `<tr><td colspan="4">${t("alerts.empty")}</td></tr>`
 }
 
+function renderOwasp(data) {
+  data = data || cache.correlation || {}
+  const cats = data.owasp || []
+  const max = Math.max(1, ...cats.map((c) => c.count || 0))
+  const tiles = $("owaspTiles")
+  if (tiles) {
+    tiles.innerHTML = cats.map((c) => {
+      const hot = (c.count || 0) > 0
+      const pct = Math.round((100 * (c.count || 0)) / max)
+      const rules = (c.hub_rules || []).slice(0, 3).join(", ")
+      const active = owaspSelected === c.code ? " active" : ""
+      return `<button type="button" class="owasp-tile${hot ? " hot" : ""}${active}" data-owasp="${c.code}">
+        <b>${c.code}</b>
+        <span>${c.name || ""}</span>
+        <strong>${c.count || 0}</strong>
+        <div class="owasp-bar"><span style="width:${pct}%"></span></div>
+        <small>${rules || t("owasp.no_rules", "no hub rules")}</small>
+      </button>`
+    }).join("")
+    tiles.onclick = (ev) => {
+      const tile = ev.target.closest("[data-owasp]")
+      if (!tile) return
+      const code = tile.getAttribute("data-owasp")
+      owaspSelected = owaspSelected === code ? "" : code
+      renderOwasp(cache.correlation)
+    }
+  }
+  const findings = (data.findings || []).filter((f) => {
+    if (owaspSelected && f.owasp !== owaspSelected) return false
+    return matchesFilter([f.when, f.ip, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
+  })
+  const body = $("owaspFindings")
+  if (body) {
+    body.innerHTML = findings.map((f) => `<tr>
+      <td>${fmtTime(f.when)}</td>
+      <td><code>${f.ip || "—"}</code></td>
+      <td>${f.scenario || "—"}</td>
+      <td>${f.owasp || "none"}</td>
+      <td>${(f.attack || []).join(" ") || "—"}</td>
+      <td>${f.confidence || "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="6">${t("owasp.empty", "No correlated findings")}</td></tr>`
+  }
+  const attack = $("owaspAttack")
+  if (attack) {
+    attack.innerHTML = stack((data.attack || []).map((a) => ({
+      l: a.id + " " + (a.name || ""),
+      r: a.count || 0
+    }))) || `<p class="hint">${t("empty")}</p>`
+  }
+  const conn = $("owaspConnectors")
+  if (conn) {
+    conn.innerHTML = (data.connectors || []).map((c) => `<tr>
+      <td class="connector-type">${c.type || ""}</td>
+      <td>${c.name || ""}</td>
+      <td>${c.scope || ""}</td>
+      <td>${c.status || ""}</td>
+      <td>${c.note || ""}</td>
+    </tr>`).join("") || `<tr><td colspan="5">${t("empty")}</td></tr>`
+  }
+  renderGaPrecision(data)
+}
+
+function renderGaPrecision(data) {
+  const box = $("gaPrecisionBody")
+  const note = $("gaPrecisionNote")
+  if (!box) return
+  const gaData = (data && data.ga) || {}
+  if (note) note.textContent = gaData.note || t("ga.note")
+  if (!gaData.configured) {
+    box.innerHTML = `<p class="hint">${t("ga.unconfigured")}</p>`
+    return
+  }
+  const hosts = (gaData.hosts || []).map((h) => {
+    const name = h.host || h
+    const sessions = (h.sessions != null) ? h.sessions : ""
+    return `<div class="stack-row"><span>${name}</span><b>${sessions} ${t("ga.sessions", "sessions")}</b></div>`
+  }).join("") || `<p class="hint">${t("empty")}</p>`
+  const countries = (gaData.countries || []).map((c) => {
+    const lapi = (c.lapi_count != null) ? c.lapi_count : "—"
+    const vclass = c.verdict ? " ga-" + c.verdict : ""
+    return `<div class="stack-row${vclass}"><span>${c.cn} · LAPI ${lapi}</span><b>${c.sessions} ${t("ga.sessions", "sessions")} · ${t("ga.density", "density")} ${c.density} · ${c.verdict || ""}</b></div>`
+  }).join("") || `<p class="hint">${t("empty")}</p>`
+  box.innerHTML = `<div class="grid-2"><div><h2>${t("th.host", "Host")}</h2>${hosts}</div><div><h2>${t("map.countries", "Countries")}</h2>${countries}</div></div>`
+}
+
 function renderDomains(data) {
   const pub = {}
   ;(data.public || []).forEach((d) => { pub[d.host] = d })
@@ -395,21 +463,24 @@ function renderDomains(data) {
 function applyFilter() {
   renderDecisions(cache.decisions)
   renderAlerts(cache.alerts)
+  renderOwasp(cache.correlation)
 }
 
 async function loadCore() {
-  const [overview, decisions, alerts, domains, engine] = await Promise.all([
+  const [overview, decisions, alerts, domains, engine, correlation] = await Promise.all([
     api("/api/overview"),
     api("/api/decisions"),
     api("/api/alerts"),
     api("/api/domains"),
-    api("/api/engine")
+    api("/api/engine"),
+    api("/api/correlation")
   ])
-  cache = { ...cache, overview, decisions: decisions.items || [], alerts: alerts.items || [], domains, engine }
+  cache = { ...cache, overview, decisions: decisions.items || [], alerts: alerts.items || [], domains, engine, correlation }
   renderOverview(overview)
   renderDecisions(cache.decisions)
   renderAlerts(cache.alerts)
   renderDomains(domains)
+  renderOwasp(correlation)
   $("enginePre").textContent = JSON.stringify(engine, null, 2)
 }
 
@@ -565,6 +636,7 @@ if ($("langPt")) $("langPt").addEventListener("click", async () => {
 })
 ;(async () => {
   await loadLocale(detectLocale())
+  bindMapChrome()
   loadRulesCatalog()
   await loadAll()
 })()

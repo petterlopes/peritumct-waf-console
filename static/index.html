@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
-  <link rel="stylesheet" href="/waf/app.css?v=1.6">
+  <link rel="stylesheet" href="/waf/app.css?v=2.1">
 </head>
 <body>
   <aside class="rail">
@@ -36,6 +36,10 @@
       <button class="nav-btn" data-view="alerts">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2zm6-6V11a6 6 0 1 0-12 0v5L4 18v1h16v-1l-2-2z"/></svg>
         <span data-i18n="nav.alerts">Alerts</span>
+      </button>
+      <button class="nav-btn" data-view="owasp">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5.1 3.4 9.8 8 11 4.6-1.2 8-5.9 8-11V6l-8-4zm-1 14-3.5-3.5 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7z"/></svg>
+        <span data-i18n="nav.owasp">OWASP</span>
       </button>
       <button class="nav-btn" data-view="rules">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
@@ -142,8 +146,8 @@
 
         <article class="card glow-cyan span-3">
           <div class="card-head"><h2 data-i18n="card.world">World map</h2><span class="tag active" data-i18n="tag.geo">LAPI geo</span></div>
-          <div class="map-wrap"><svg id="mapMini" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Alert map"></svg></div>
-          <p id="mapMiniNote" data-i18n="map.note">Coordinates from the CrowdSec alert. No third-party GeoIP.</p>
+          <div class="map-wrap"><svg id="mapMini" viewBox="0 0 960 500" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Alert map"></svg></div>
+          <p id="mapMiniNote" data-i18n="map.note">Robinson map of LAPI alert coordinates. No third-party GeoIP.</p>
         </article>
       </div>
     </section>
@@ -151,7 +155,16 @@
     <section id="view-map" class="view hidden">
       <article class="card glow-cyan">
         <div class="card-head"><h2 data-i18n="map.geo_alerts">Georeferenced alerts</h2><span class="tag">lat/lon LAPI</span></div>
-        <div class="map-wrap map-lg"><svg id="mapFull" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World alert map"></svg></div>
+        <div class="map-wrap map-lg" id="mapStage">
+          <div class="map-toolbar" role="toolbar" aria-label="Map controls">
+            <button type="button" id="mapZoomOut" aria-label="Zoom out">−</button>
+            <button type="button" id="mapZoomIn" aria-label="Zoom in">+</button>
+            <button type="button" id="mapReset" data-i18n="map.reset">Reset</button>
+            <button type="button" id="mapArcs" class="active" data-i18n="map.arcs">Routes</button>
+          </div>
+          <svg id="mapFull" viewBox="0 0 960 500" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World alert map"></svg>
+          <div class="map-legend" id="mapLegend"></div>
+        </div>
       </article>
       <div class="grid-2">
         <article class="card">
@@ -268,6 +281,70 @@
           </table>
         </div>
       </article>
+    </section>
+
+    <section id="view-owasp" class="view hidden">
+      <article class="card glow-cyan">
+        <div class="card-head">
+          <h2 data-i18n="owasp.title">OWASP Top 10:2021</h2>
+          <span class="tag active">A01–A10</span>
+        </div>
+        <p class="hint" data-i18n="owasp.hint">CrowdSec LAPI/AppSec findings mapped to OWASP Top 10:2021. Local enrichment only. File export to MISP, TheHive, OpenCTI STIX — no outbound push.</p>
+        <div class="owasp-grid" id="owaspTiles"></div>
+      </article>
+      <article class="card" id="gaPrecision">
+        <div class="card-head"><h2 data-i18n="ga.title">GA4 precision</h2><span class="tag" data-i18n="map.ga">GA</span></div>
+        <p class="hint" id="gaPrecisionNote" data-i18n="ga.note">GA4 sessions are real-user volume by country and host. LAPI/GA density separates scanner-heavy countries from user-impact risk. Map coordinates stay CrowdSec LAPI.</p>
+        <div id="gaPrecisionBody"></div>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="owasp.findings">Correlated findings</h2>
+          <div class="inline wrap">
+            <a class="ghost" href="/waf/api/correlation/stix" download="waf-findings.stix.json" data-i18n="owasp.stix">STIX</a>
+            <a class="ghost" href="/waf/api/correlation/misp" download="waf-findings.misp.json" data-i18n="owasp.misp">MISP</a>
+            <a class="ghost" href="/waf/api/correlation/thehive" download="waf-findings.thehive.json" data-i18n="owasp.thehive">TheHive</a>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="th.when">When</th>
+                <th data-i18n="th.ip">IP</th>
+                <th data-i18n="th.scenario">Scenario</th>
+                <th data-i18n="owasp.col">OWASP</th>
+                <th data-i18n="owasp.attack">ATT&amp;CK</th>
+                <th data-i18n="owasp.confidence">Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="owaspFindings"></tbody>
+          </table>
+        </div>
+      </article>
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="owasp.attack_title">ATT&amp;CK techniques</h2></div>
+          <div id="owaspAttack" class="stack-list"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="owasp.connectors">Connectors</h2></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="th.type">Type</th>
+                  <th data-i18n="th.name">Name</th>
+                  <th data-i18n="owasp.scope">Scope</th>
+                  <th data-i18n="owasp.status">Status</th>
+                  <th data-i18n="owasp.note">Note</th>
+                </tr>
+              </thead>
+              <tbody id="owaspConnectors"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section id="view-rules" class="view hidden">
@@ -387,6 +464,7 @@
             <li data-i18n="engine.p7">Map uses LAPI geo only · Hub rules are read-only</li>
             <li data-i18n="engine.p8">Mutations that change fail-closed/CRS in-band: none (forbidden in the UI)</li>
             <li data-i18n="engine.p9">Operator control: per-site policies, CIDR allowlist, IP ban/unban</li>
+            <li data-i18n="engine.p10">OWASP Top 10:2021 correlation is local; CTI connectors export files only (no outbound push)</li>
           </ul>
         </article>
         <article class="card">
@@ -396,8 +474,10 @@
       </div>
     </section>
   </main>
-  <script src="/waf/world.js?v=1.6"></script>
-  <script src="/waf/i18n.js?v=1.6"></script>
-  <script src="/waf/app.js?v=1.6"></script>
+  <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
+  <script src="/waf/world.js?v=2.1"></script>
+  <script src="/waf/i18n.js?v=2.1"></script>
+  <script src="/waf/map.js?v=2.1"></script>
+  <script src="/waf/app.js?v=2.1"></script>
 </body>
 </html>

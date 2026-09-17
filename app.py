@@ -22,6 +22,8 @@ from pathlib import Path
 
 import control
 import catalog as catalog_mod
+import correlate
+import ga
 
 BIND = os.environ.get("WAF_BIND", "127.0.0.1")
 PORT = int(os.environ.get("WAF_PORT", "18990"))
@@ -203,7 +205,7 @@ def http_probe(host: str, server: str) -> dict:
     try:
         sock = ctx.wrap_socket(socket.create_connection((server, 443), timeout=8), server_hostname=host)
         sock.sendall(
-            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.1\r\n"
+            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.4\r\n"
             f"Accept-Encoding: identity\r\nConnection: close\r\n\r\n".encode()
         )
         data = b""
@@ -238,7 +240,7 @@ def engine_status() -> dict:
         "include_large_uploads": bool(re.search(r"INCLUDE_LARGE_UPLOADS\s*[:=]\s*(1|true|yes)", acquis, re.I)),
         "creds_present": CREDS_PATH.is_file(),
         "bouncer_key_present": bool(bouncer_key()),
-        "version": "waf-console/1.0.1",
+        "version": "waf-console/1.0.4",
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
     }
 
@@ -303,9 +305,14 @@ def source_of(alert: dict) -> dict:
     if (lat_f is None or lon_f is None) and cn in COUNTRY_CENTROID:
         lat_f, lon_f = COUNTRY_CENTROID[cn]
         approx = True
+    city = ""
+    if isinstance(event0, dict):
+        city = str(event0.get("city") or "")
+    city = str(src.get("city") or city)
     return {
         "ip": ip,
         "cn": cn,
+        "city": city,
         "as_name": src.get("as_name") or src.get("asname") or "",
         "lat": lat_f,
         "lon": lon_f,
@@ -415,6 +422,21 @@ def fetch_alerts(limit: int = 80) -> list:
     return data if isinstance(data, list) else []
 
 
+def edge_point():
+    lat = os.environ.get("WAF_EDGE_LAT")
+    lon = os.environ.get("WAF_EDGE_LON")
+    if not lat or not lon:
+        return None
+    try:
+        return {
+            "lat": float(lat),
+            "lon": float(lon),
+            "label": os.environ.get("WAF_EDGE_LABEL") or "edge",
+        }
+    except ValueError:
+        return None
+
+
 def build_map(alerts: list) -> dict:
     points = []
     countries: dict[str, dict] = {}
@@ -426,15 +448,19 @@ def build_map(alerts: list) -> dict:
             continue
         points.append(src)
         cn = src["cn"] or "??"
-        slot = countries.setdefault(cn, {"cn": cn, "count": 0, "lat": src["lat"], "lon": src["lon"]})
+        slot = countries.setdefault(cn, {"cn": cn, "count": 0, "lat": src["lat"], "lon": src["lon"], "city": src.get("city") or ""})
         slot["count"] += int(src.get("capacity") or 1)
+        if src.get("city") and not slot.get("city"):
+            slot["city"] = src["city"]
     points.sort(key=lambda p: p.get("created_at") or "", reverse=True)
-    return {
+    payload = {
         "points": points[:80],
         "countries": sorted(countries.values(), key=lambda c: c["count"], reverse=True)[:40],
         "geo_source": "crowdsec-lapi",
         "note": "LAPI coordinates (source.latitude/longitude) or ISO centroid. No third-party GeoIP.",
+        "edge": edge_point(),
     }
+    return ga.attach_map(payload)
 
 
 def build_rules() -> dict:
@@ -574,7 +600,7 @@ def add_ban(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "waf-console/1.0.1"
+    server_version = "waf-console/1.0.4"
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -596,8 +622,30 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _send_download(self, body, filename, content_type="application/json; charset=utf-8"):
+        if isinstance(body, (dict, list)):
+            raw = json.dumps(body, ensure_ascii=False).encode()
+        elif isinstance(body, bytes):
+            raw = body
+        else:
+            raw = str(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Content-Disposition", 'attachment; filename="%s"' % filename)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("X-Robots-Tag", "noindex, nofollow")
+        self.end_headers()
+        self.wfile.write(raw)
+
     def _json_error(self, code: int, message: str):
         self._send(code, {"ok": False, "error": message})
+
+    def _correlation_payload(self) -> dict:
+        alerts = fetch_alerts(80)
+        return ga.attach_correlation(correlate.correlate(alerts, control.hub_appsec_rules()), build_map(alerts))
 
     def _route_path(self) -> str:
         path = urllib.parse.urlparse(self.path).path
@@ -622,7 +670,7 @@ class Handler(BaseHTTPRequestHandler):
             name = path.split("/")[-1]
             ctype = "text/css" if name.endswith(".css") else "application/javascript" if name.endswith(".js") else "application/octet-stream"
             return self._static(name, ctype)
-        if path in ("/app.css", "/app.js", "/i18n.js", "/world.js"):
+        if path in ("/app.css", "/app.js", "/i18n.js", "/world.js", "/map.js"):
             ctype = "text/css" if path.endswith(".css") else "application/javascript"
             return self._static(path.lstrip("/"), ctype)
         if path.startswith("/locales/"):
@@ -656,6 +704,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, scrape_metrics())
         if path == "/api/coverage":
             return self._coverage()
+        if path == "/api/correlation":
+            try:
+                return self._send(200, self._correlation_payload())
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path == "/api/correlation/stix":
+            try:
+                return self._send_download(correlate.stix_bundle(self._correlation_payload()), "waf-findings.stix.json")
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path == "/api/correlation/misp":
+            try:
+                return self._send_download(correlate.misp_event(self._correlation_payload()), "waf-findings.misp.json")
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path == "/api/correlation/thehive":
+            try:
+                return self._send_download(correlate.thehive_alert(self._correlation_payload()), "waf-findings.thehive.json")
+            except Exception as exc:
+                return self._json_error(502, str(exc))
         if path == "/api/sites":
             return self._send(200, control.sites_payload())
         if path == "/api/filters":
@@ -841,6 +909,7 @@ class Handler(BaseHTTPRequestHandler):
                 "engine": engine_status(),
                 "sites": control.sites_payload(),
                 "filters": control.load_filters(),
+                "correlation": ga.attach_correlation(correlate.correlate(alerts, control.hub_appsec_rules()), build_map(alerts)),
             },
         )
 

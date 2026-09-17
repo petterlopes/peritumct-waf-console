@@ -13,7 +13,7 @@ Portuguese README: [README.pt-BR.md](README.pt-BR.md)
 
 ## What it does
 
-- Dark operator UI (overview, map, decisions, alerts, hub rules, metrics)
+- Dark operator UI (overview, map, decisions, alerts, OWASP Top 10 correlation, hub rules, metrics)
 - **Policy CRUD** per FQDN: allow a path, skip a named in-band rule, or bypass AppSec for a host
 - Local LAPI ban / unban (max 168h) and allowlist CIDR add/remove via `cscli`
 - Loopback-only bind (`127.0.0.1`) so LAPI/AppSec stay off the public network
@@ -23,7 +23,7 @@ Portuguese README: [README.pt-BR.md](README.pt-BR.md)
 - Enable CRS in-band, `INCLUDE_LARGE_UPLOADS` / `DisableBodyInspection`, or fail-closed changes
 - Enable CrowdSec 1.8 bot detection / challenge
 - Put this UI behind the CrowdSec bouncer (lockout risk)
-- Call a third-party GeoIP API (map uses LAPI `source.latitude` / `longitude` only)
+- Call a third-party GeoIP API (map uses LAPI `source.latitude` / `longitude` only; land polygons are public-domain Natural Earth 110m)
 
 ## Quick start
 
@@ -47,7 +47,7 @@ CI runs SAST (Ruff + Bandit) and SCA (pip-audit + Trivy filesystem). See
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ruff check .
-bandit -q -r app.py control.py catalog.py
+bandit -q -r app.py control.py catalog.py correlate.py
 pip-audit -r requirements-dev.txt
 ```
 

@@ -85,6 +85,13 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_APPSEC_FILE` | `peritumct-site-filters.yaml` | File under `appsec-configs/` |
 | `PUBLIC_IP` | empty | Origin vs public HTTP probes (optional) |
 | `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map |
+| `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |
+| `WAF_MISP_KEY` | empty | Stored for operators; **never** returned in JSON |
+| `WAF_THEHIVE_URL` | empty | If set, TheHive connector status is `configured` (file export only) |
+| `WAF_THEHIVE_KEY` | empty | Stored for operators; **never** returned in JSON |
+| `WAF_OPENCTI_URL` | empty | If set, OpenCTI connector status is `configured` (STIX file export) |
+| `WAF_OPENCTI_TOKEN` | empty | Stored for operators; **never** returned in JSON |
+| `WAF_GA_SNAPSHOT_FILE` | empty | Optional aggregate GA4 JSON (hostname + country sessions). See §14 |
 
 ## 5. Reverse proxy (anti-lockout)
 
@@ -194,3 +201,60 @@ Browsers with `Accept-Language: pt*` open in Portuguese until the operator picks
 ## 12. SCA / SAST
 
 See [SECURITY.md](SECURITY.md). GitHub Actions workflow: `.github/workflows/security.yml`.
+
+## 13. OWASP correlation and CTI file export
+
+The **OWASP** tab maps CrowdSec LAPI/AppSec alerts (and Hub AppSec rule names) to
+[OWASP Top 10:2021](https://owasp.org/Top10/2021/) using first-match regex on
+scenario / CRS IDs. MITRE ATT&CK enrichment uses a **local** catalog
+(T1190, T1595, T1110, T1059, T1083, T1046, T1189, T1505, T1090, T1562, T1600,
+T1068, T1505.003) — the console does not download MITRE GitHub at runtime.
+
+OpenCTI-inspired connectors (`INTERNAL_ENRICHMENT`, `EXTERNAL_IMPORT`, `STREAM`,
+`INTERNAL_EXPORT_FILE`) are local only. Operators download:
+
+| Path | File |
+|------|------|
+| `GET /api/correlation` | JSON dashboard payload |
+| `GET /api/correlation/stix` | STIX 2.1 bundle (`waf-findings.stix.json`) |
+| `GET /api/correlation/misp` | MISP event JSON |
+| `GET /api/correlation/thehive` | TheHive alert JSON |
+
+`push` is always `false`. Findings are never sent to MISP, TheHive, or OpenCTI.
+API tokens/keys are never included in JSON. Connector status is `configured`
+only when the matching `WAF_*_URL` is set. Map geo stays LAPI-only (no third-party GeoIP).
+
+## 14. GA4 snapshot (finding precision, no Data API)
+
+Existing public sites already send GA4 property `G-EWYYWP65FN` (HEXACO Nuxt,
+Personalidade Nuxt, Perícia WordPress Site Kit). This console **must not** load
+gtag, must **not** call the Google Analytics Data API, and must **never** send
+CrowdSec attacker IPs via Measurement Protocol.
+
+Operators may drop a **manual aggregate export** at `WAF_GA_SNAPSHOT_FILE`
+(example: `/var/lib/waf-control/ga-snapshot.json`). Shape:
+[examples/ga-snapshot.example.json](../examples/ga-snapshot.example.json).
+
+How to export (GA4 UI, 7-day window):
+
+1. Open property **G-EWYYWP65FN**.
+2. **Explore** (or **Reports → User → Tech / Demographic details → Geo**) and
+   break down by **hostname** and **country**.
+3. Restrict to public editorial hosts:
+   `hexaco.neurofocus.com.br`, `personalidade.neurofocus.com.br`,
+   `periciacomputacional.com`. Skip `/waf` and `expertsforensic.com`.
+4. Copy session counts into the example JSON (`property`, `window_days`,
+   `hosts[].sessions`, `countries[].sessions`).
+
+The console computes `lapi_count / ga_sessions` as threat density:
+
+| Pattern | Verdict |
+|---------|---------|
+| High LAPI, zero GA sessions | `scanner-heavy` |
+| High LAPI, high GA sessions | `user-impact-risk` |
+| No LAPI | `clean-traffic` |
+| Otherwise | `mixed` |
+
+Map coordinates stay `geo_source: crowdsec-lapi`. GA is volume context only.
+**Forbidden from dest / this process:** Google Data API, gtag on `/waf`,
+Measurement Protocol of CrowdSec IPs.
