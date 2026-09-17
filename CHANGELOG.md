@@ -4,7 +4,8 @@
 
 - Equirectangular world map: continent rings share the same projection as LAPI geo dots
 - English remains the default UI locale; pt-BR is opt-in via the EN/PT switcher (no browser auto-switch)
-- Cache-bust static assets at `?v=1.5`; serve `/waf/world.js`
+- Cache-bust static assets at `?v=1.6`; serve `/waf/world.js`
+- Map and allowlist notes follow the selected locale instead of overwriting it with API copy
 
 ## 1.0.0 — 2026-09-17
 

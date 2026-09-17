@@ -209,7 +209,7 @@ function renderOverview(data) {
   $("ipPad").innerHTML = pad.map((ip) => `<div class="ip-chip">${ip}</div>`).join("")
   const map = data.map || (cache.coverage && cache.coverage.map) || { points: [] }
   renderMap($("mapMini"), map)
-  if ($("mapMiniNote")) $("mapMiniNote").textContent = map.note || t("map.note")
+  if ($("mapMiniNote")) $("mapMiniNote").textContent = t("map.note")
   setLive(!data.error && eng.lapi_listen, data.error ? "LAPI: " + data.error : t("live.lapi_up"))
 }
 
@@ -241,7 +241,7 @@ function renderRules(rules) {
 
 function renderAllowlists(data) {
   data = data || {}
-  $("allowNote").textContent = data.note || ""
+  $("allowNote").textContent = t("allow.note")
   const lapi = data.lapi || []
   const items = []
   lapi.forEach((x) => {
