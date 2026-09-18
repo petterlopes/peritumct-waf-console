@@ -675,6 +675,9 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/app.css", "/app.js", "/i18n.js", "/world.js", "/map.js"):
             ctype = "text/css" if path.endswith(".css") else "application/javascript"
             return self._static(path.lstrip("/"), ctype)
+        if path in ("/logo.svg", "/logo.png"):
+            ctype = "image/svg+xml" if path.endswith(".svg") else "image/png"
+            return self._static(path.lstrip("/"), ctype)
         if path.startswith("/locales/"):
             name = path.split("/")[-1]
             if name not in ("en.json", "pt-BR.json"):

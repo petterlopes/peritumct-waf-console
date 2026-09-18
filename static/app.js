@@ -58,8 +58,9 @@ function showView(name) {
   views.forEach((v) => {
     const node = $("view-" + v)
     if (node) node.classList.toggle("hidden", v !== name)
-    const btn = document.querySelector('[data-view="' + v + '"]')
-    if (btn) btn.classList.toggle("active", v === name)
+  })
+  document.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === name)
   })
   $("viewTitle").textContent = viewTitles()[name]
   if (location.hash.replace(/^#/, "") !== name) history.replaceState(null, "", "#" + name)
@@ -978,7 +979,7 @@ async function unban(ip) {
   await loadAll()
 }
 
-document.querySelectorAll(".nav-btn").forEach((btn) => {
+document.querySelectorAll("[data-view]").forEach((btn) => {
   btn.addEventListener("click", () => showView(btn.dataset.view))
 })
 window.addEventListener("hashchange", () => {

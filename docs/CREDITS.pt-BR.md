@@ -1,8 +1,8 @@
 # Créditos
 
-Vigente a 17 de setembro de 2026.
+Vigente em 17 de setembro de 2026.
 
-Esta consola de operador é desenhada e mantida por **Petter Anderson Lopes**
+Este console de operador é projetado e mantido por **Petter Anderson Lopes**
 para a PERITUM / Perícia Computacional. Não é o dashboard cloud da CrowdSec.
 
 ## Autor
@@ -16,11 +16,11 @@ para a PERITUM / Perícia Computacional. Não é o dashboard cloud da CrowdSec.
 - PeritumCT WAF Console — Licença MIT, Copyright (c) 2026 PeritumCT (`LICENSE`)
 - Engine CrowdSec (LAPI + AppSec) — MIT. Upstream:
   https://github.com/crowdsecurity/crowdsec — pin de integração **v1.8.1**. Ver `NOTICE`.
-- Polígonos terrestres: Natural Earth 110m (domínio público). Projecção: Robinson.
+- Polígonos terrestres: Natural Earth 110m (domínio público). Projeção: Robinson.
   Coordenadas só da LAPI CrowdSec (sem GeoIP de terceiros).
-- OWASP Top 10:2021 e MITRE ATT&CK são **catálogos locais** (sem download em directo).
+- OWASP Top 10:2021 e MITRE ATT&CK são **catálogos locais** (sem download direto).
 
 A UI `/waf` nunca carrega publicidade nem gtag.
 
-UI: separador Créditos · `#credits`
+UI: aba Créditos · `#credits`
 English: [CREDITS.md](CREDITS.md)

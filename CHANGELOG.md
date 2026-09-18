@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 — 2026-09-17
+
+- PERITUM shield logo in the rail, favicon, credits page, and footer
+- Credits, privacy, and terms stay pinned in the sidebar and a page footer (not buried in the nav scroll)
+
 ## 1.0.7 — 2026-09-17
 
 - Credits, privacy policy and terms of use (EN default, pt-BR secondary)
