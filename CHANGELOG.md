@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7 — 2026-09-17
+
+- Credits, privacy policy and terms of use (EN default, pt-BR secondary)
+- Author links: periciacomputacional.com/sobre, LinkedIn, Instagram @peritopetterlopes
+- Deep links `#credits` `#privacy` `#terms`
+
 ## 1.0.5 — 2026-09-17
 
 - Dedicated MITRE ATT&CK tab (local Enterprise catalog, tactic/technique tiles, no GitHub download)

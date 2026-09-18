@@ -55,4 +55,9 @@ pip-audit -r requirements-dev.txt
 
 The console stores operator audit events locally (`WAF_CONTROL/audit.jsonl`).
 It does not send telemetry. IP addresses in CrowdSec alerts are security events.
-Details: [docs/PRIVACY.md](docs/PRIVACY.md).
+
+- Credits: [docs/CREDITS.md](docs/CREDITS.md) (author, CrowdSec MIT, Natural Earth)
+- Privacy: [docs/PRIVACY.md](docs/PRIVACY.md)
+- Terms of use: [docs/TERMS.md](docs/TERMS.md)
+
+UI tabs: Credits · Privacy · Terms (`#credits`, `#privacy`, `#terms`).

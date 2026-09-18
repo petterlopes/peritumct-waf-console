@@ -1,7 +1,17 @@
 # Privacy (DPO)
 
+Effective 17 September 2026. UI: Privacy tab · `#privacy` · Portuguese:
+[PRIVACY.pt-BR.md](PRIVACY.pt-BR.md)
+
 This console is an **operator tool**. It is not a public website and must stay on
-loopback + admin VPN.
+loopback + admin VPN. It is **not** the privacy notice of
+[periciacomputacional.com](https://periciacomputacional.com/sobre/) or other origin sites.
+
+**Controller:** Petter Anderson Lopes, operating as PERITUM / Perícia Computacional.
+
+- About: https://periciacomputacional.com/sobre/
+- LinkedIn: https://www.linkedin.com/in/petter-anderson-lopes/
+- Instagram: [@peritopetterlopes](https://www.instagram.com/peritopetterlopes/)
 
 ## Data processed
 

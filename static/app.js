@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id)
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]))
 }
-const views = ["dashboard", "overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "domains", "engine"]
+const views = ["dashboard", "overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "domains", "engine", "credits", "privacy", "terms"]
 function viewTitles() {
   return {
     dashboard: t("nav.dashboard", "Dashboard"),
@@ -17,7 +17,10 @@ function viewTitles() {
     allowlists: t("nav.allowlists", "Allowlists"),
     metrics: t("nav.metrics", "Metrics"),
     domains: t("nav.domains", "Domains"),
-    engine: t("nav.engine", "Engine")
+    engine: t("nav.engine", "Engine"),
+    credits: t("nav.credits", "Credits"),
+    privacy: t("nav.privacy", "Privacy"),
+    terms: t("nav.terms", "Terms")
   }
 }
 
@@ -51,6 +54,7 @@ function setLive(ok, label) {
 }
 
 function showView(name) {
+  if (views.indexOf(name) < 0) name = "dashboard"
   views.forEach((v) => {
     const node = $("view-" + v)
     if (node) node.classList.toggle("hidden", v !== name)
@@ -58,6 +62,7 @@ function showView(name) {
     if (btn) btn.classList.toggle("active", v === name)
   })
   $("viewTitle").textContent = viewTitles()[name]
+  if (location.hash.replace(/^#/, "") !== name) history.replaceState(null, "", "#" + name)
 }
 
 function hourBuckets(alerts) {
@@ -976,6 +981,10 @@ async function unban(ip) {
 document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => showView(btn.dataset.view))
 })
+window.addEventListener("hashchange", () => {
+  const name = location.hash.replace(/^#/, "")
+  if (views.indexOf(name) >= 0) showView(name)
+})
 const mitreOverviewCard = $("mitreOverviewCard")
 if (mitreOverviewCard) {
   const openMitre = () => showView("mitre")
@@ -1171,20 +1180,30 @@ $("checkForm").addEventListener("submit", async (ev) => {
   node.classList.remove("hidden")
   node.textContent = JSON.stringify(data, null, 2)
 })
+function currentView() {
+  const hash = location.hash.replace(/^#/, "")
+  if (views.indexOf(hash) >= 0) return hash
+  const active = document.querySelector(".nav-btn.active")
+  return (active && active.dataset.view) || "dashboard"
+}
 setInterval(() => {
   $("clock").textContent = new Date().toLocaleTimeString(localeTag(), { hour12: false })
 }, 1000)
 if ($("langEn")) $("langEn").addEventListener("click", async () => {
   await loadLocale("en")
+  showView(currentView())
   await loadAll()
 })
 if ($("langPt")) $("langPt").addEventListener("click", async () => {
   await loadLocale("pt-BR")
+  showView(currentView())
   await loadAll()
 })
 ;(async () => {
   await loadLocale(detectLocale())
   bindMapChrome()
+  const boot = location.hash.replace(/^#/, "")
+  if (views.indexOf(boot) >= 0) showView(boot)
   loadRulesCatalog()
   await loadAll()
 })()
