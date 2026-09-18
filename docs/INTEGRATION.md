@@ -205,10 +205,12 @@ See [SECURITY.md](SECURITY.md). GitHub Actions workflow: `.github/workflows/secu
 ## 13. OWASP correlation and CTI file export
 
 The **OWASP** tab maps CrowdSec LAPI/AppSec alerts (and Hub AppSec rule names) to
-[OWASP Top 10:2021](https://owasp.org/Top10/2021/) using first-match regex on
-scenario / CRS IDs. MITRE ATT&CK enrichment uses a **local** catalog
-(T1190, T1595, T1110, T1059, T1083, T1046, T1189, T1505, T1090, T1562, T1600,
-T1068, T1505.003) — the console does not download MITRE GitHub at runtime.
+[OWASP Top 10:2021](https://owasp.org/Top10/2021/). CRS IDs must be six digits
+(`934100`, not `CVE-2024-9341`). Engine chatter (body inspection, CAPI IP
+updates, OOB scores without a technique) is dropped. MITRE ATT&CK enrichment
+uses a **local** subset (T1190, T1595, T1110, T1059, T1083, T1046 Discovery,
+T1189, T1505, T1090, T1562, T1600, T1068, T1505.003) — no GitHub download.
+Internet scanners map to T1595 only; SQLi/XSS/SSRF map to T1190.
 
 OpenCTI-inspired connectors (`INTERNAL_ENRICHMENT`, `EXTERNAL_IMPORT`, `STREAM`,
 `INTERNAL_EXPORT_FILE`) are local only. Operators download:
@@ -265,3 +267,19 @@ The console computes `lapi_count / ga_sessions` as threat density:
 Map coordinates stay `geo_source: crowdsec-lapi`. GA is volume context only.
 **Forbidden from dest / this process:** Google Data API, gtag on `/waf`,
 Measurement Protocol of CrowdSec IPs.
+
+## 15. Local console tunnel (workstation only)
+
+The **Admin** tab documents the Teleport local forward used to open the console
+on the operator workstation. It does **not** create Traefik HTTP/TCP routers
+and it does **not** write `dynamic.yaml`.
+
+```powershell
+.\scripts\waf-admin.ps1 tunnel
+# then http://127.0.0.1:18990/waf/
+```
+
+Equivalent: `tsh ssh -N -L 18990:127.0.0.1:18990 root@localhost`
+
+Do not expose `:18990` on a public address. Overlay access remains
+`https://expertsforensic.com/waf/` with `expertsforensic-admin-only` (no CrowdSec bouncer).

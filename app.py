@@ -25,6 +25,7 @@ import catalog as catalog_mod
 import correlate
 import dashboard as dashmod
 import ga
+import routes as routemod
 
 BIND = os.environ.get("WAF_BIND", "127.0.0.1")
 PORT = int(os.environ.get("WAF_PORT", "18990"))
@@ -739,6 +740,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, **control.load_filters()})
         if path == "/api/hub/appsec-rules":
             return self._send(200, {"ok": True, "items": control.hub_appsec_rules()})
+        if path == "/api/admin":
+            return self._send(200, routemod.admin_payload())
+        if path == "/api/routes":
+            return self._send(200, routemod.payload())
+        if path == "/api/tunnels":
+            return self._send(200, routemod.payload())
         self._json_error(404, "not found")
 
     def do_POST(self):
@@ -823,6 +830,34 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/decisions":
             try:
                 return self._send(200, add_ban(payload))
+            except ValueError as exc:
+                return self._json_error(400, str(exc))
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path in ("/api/routes", "/api/routes/update"):
+            try:
+                return self._send(200, routemod.upsert_route(payload))
+            except ValueError as exc:
+                return self._json_error(400, str(exc))
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path == "/api/routes/delete":
+            try:
+                return self._send(200, routemod.delete_route(str(payload.get("id") or payload.get("name") or "")))
+            except ValueError as exc:
+                return self._json_error(400, str(exc))
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path in ("/api/tunnels", "/api/tunnels/update"):
+            try:
+                return self._send(200, routemod.upsert_tunnel(payload))
+            except ValueError as exc:
+                return self._json_error(400, str(exc))
+            except Exception as exc:
+                return self._json_error(502, str(exc))
+        if path == "/api/tunnels/delete":
+            try:
+                return self._send(200, routemod.delete_tunnel(str(payload.get("id") or payload.get("name") or "")))
             except ValueError as exc:
                 return self._json_error(400, str(exc))
             except Exception as exc:

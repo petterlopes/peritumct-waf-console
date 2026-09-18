@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id)
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]))
 }
-const views = ["dashboard", "overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "domains", "engine", "credits", "privacy", "terms"]
+const views = ["dashboard", "overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "admin", "domains", "engine", "credits", "privacy", "terms"]
 function viewTitles() {
   return {
     dashboard: t("nav.dashboard", "Dashboard"),
@@ -16,6 +16,7 @@ function viewTitles() {
     rules: t("nav.rules", "Rules"),
     allowlists: t("nav.allowlists", "Allowlists"),
     metrics: t("nav.metrics", "Metrics"),
+    admin: t("nav.admin", "Admin"),
     domains: t("nav.domains", "Domains"),
     engine: t("nav.engine", "Engine"),
     credits: t("nav.credits", "Credits"),
@@ -938,6 +939,23 @@ function applyFilter() {
   renderGaPrecision(cache.correlation, "gaOverview")
 }
 
+function renderAdmin(data) {
+  if (!data) return
+  const tun = data.local_tunnel || {}
+  if ($("adminTunnelCmd") && tun.command) $("adminTunnelCmd").textContent = tun.command
+  if ($("adminActions")) {
+    $("adminActions").innerHTML = (data.actions || []).map((it) =>
+      "<div class=\"action-row\"><div><h3>" + esc(it.title || "") + "</h3><small>" + esc(it.detail || "") + "</small></div><button type=\"button\" data-viewjump=\"" + esc(it.view || "admin") + "\">" + t("admin.open", "Open") + "</button></div>"
+    ).join("")
+  }
+}
+
+async function loadAdmin() {
+  const admin = await api("/api/admin")
+  cache = { ...cache, admin }
+  renderAdmin(admin)
+}
+
 async function loadCore() {
   const [overview, decisions, alerts, domains, engine, correlation] = await Promise.all([
     api("/api/overview"),
@@ -964,6 +982,7 @@ async function loadAll() {
   try {
     await loadCore()
     await loadCoverage()
+    await loadAdmin()
   } catch (err) {
     setLive(false, String(err.message || err))
   }
@@ -1053,6 +1072,10 @@ if ($("dashCustomRule")) $("dashCustomRule").addEventListener("click", () => sho
   })
 })
 if ($("dashActions")) $("dashActions").addEventListener("click", (ev) => {
+  const jump = ev.target.closest("[data-viewjump]")
+  if (jump) showView(jump.getAttribute("data-viewjump"))
+})
+if ($("adminActions")) $("adminActions").addEventListener("click", (ev) => {
   const jump = ev.target.closest("[data-viewjump]")
   if (jump) showView(jump.getAttribute("data-viewjump"))
 })

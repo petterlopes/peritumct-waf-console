@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.10 — 2026-09-18
+
+- Administration menu with WAF shortcuts and the local Teleport forward to `http://127.0.0.1:18990/waf/`
+- Console never writes Traefik `dynamic.yaml` or a sidecar (no directory provider)
+- Local tunnel only: `tsh ssh -N -L 18990:127.0.0.1:18990 root@localhost` / `waf-admin.ps1 tunnel`
+- OWASP/MITRE correlation drops CrowdSec engine chatter (body inspection, CAPI updates, OOB scores without a technique)
+- CRS IDs must be six digits; T1046 is Discovery; scanners stay T1595; SQLi/XSS/SSRF stay T1190
+
 ## 1.0.9 — 2026-09-17
 
 - Use the official PERITUM shield PNG (transparent background) in the rail, credits, footer, and favicon

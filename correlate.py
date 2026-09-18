@@ -118,7 +118,7 @@ ATTACK: dict[str, dict[str, str]] = {
     "T1046": {
         "id": "T1046",
         "name": "Network Service Discovery",
-        "tactic": "Reconnaissance",
+        "tactic": "Discovery",
         "url": "https://attack.mitre.org/techniques/T1046/",
     },
     "T1189": {
@@ -177,22 +177,63 @@ _TACTIC_ORDER = [
     "Command and Control",
 ]
 
-# First-match CrowdSec scenario / AppSec / CRS ID mapping.
+# Engine / CAPI chatter — never an OWASP or ATT&CK finding.
+_NOISE_RE = re.compile(
+    r"(?is)^\s*(?:"
+    r"enabling body inspection"
+    r"|disabl(?:e|ing) body inspection"
+    r"|update\s*:\s*[+-]\d+"
+    r"|(?:capi|community).{0,48}(?:blocklist|ips)"
+    r"|synced \d+"
+    r"|loading (?:parsers|scenarios|collections)"
+    r"|crowdsec (?:started|version)"
+    r"|capacity overflow"
+    r"|bucket overflow"
+    r")"
+)
+
+# CRS 3.x IDs are six digits (934100). Do not match CVE-2024-9341.
+_CRS_ID_RE = re.compile(
+    r"\b(?P<gid>913|920|921|930|931|932|933|934|941|942|943|944)\d{3}\b"
+)
+_CRS_CLASS: dict[str, tuple[str, list[str], str]] = {
+    "913": ("A05", ["T1595"], "medium"),
+    "920": ("A05", ["T1595"], "medium"),
+    "921": ("A05", ["T1595"], "medium"),
+    "930": ("A01", ["T1190"], "high"),
+    "931": ("A03", ["T1190"], "high"),
+    "932": ("A03", ["T1190", "T1059", "T1068"], "high"),
+    "933": ("A03", ["T1190", "T1059"], "high"),
+    "934": ("A10", ["T1190"], "high"),
+    "941": ("A03", ["T1190"], "high"),
+    "942": ("A03", ["T1190"], "high"),
+    "943": ("A07", ["T1110"], "medium"),
+    "944": ("A03", ["T1190"], "high"),
+}
+
+# Specific Hub / AppSec names first. No bare CRS digits, ssh, ssl, oob, or upload.
 _CLASSIFY_RULES: list[tuple[re.Pattern[str], str, list[str], str]] = [
-    (re.compile(r"ssrf|934", re.I), "A10", ["T1190", "T1090"], "high"),
-    (re.compile(r"tls|ssl|weak.?crypto", re.I), "A02", ["T1600"], "medium"),
-    (re.compile(r"sqli|942", re.I), "A03", ["T1190", "T1059"], "high"),
-    (re.compile(r"xss|941", re.I), "A03", ["T1189", "T1059"], "high"),
-    (re.compile(r"rce|932|933", re.I), "A03", ["T1190", "T1059", "T1068"], "high"),
-    (re.compile(r"lfi|930", re.I), "A01", ["T1083", "T1190"], "high"),
-    (re.compile(r"rfi|931", re.I), "A01", ["T1190", "T1505"], "high"),
-    (re.compile(r"wordpress-uploads-listing|backdoor", re.I), "A01", ["T1505", "T1505.003"], "high"),
-    (re.compile(r"vpatch|cve|wordpress", re.I), "A06", ["T1190"], "medium"),
-    (re.compile(r"brute|ssh", re.I), "A07", ["T1110"], "high"),
-    (re.compile(r"body.?inspect|upload", re.I), "A08", ["T1505", "T1505.003"], "medium"),
-    (re.compile(r"oob|log-only|outofband", re.I), "A09", ["T1562"], "low"),
-    (re.compile(r"probing|scanner", re.I), "A05", ["T1595", "T1046"], "medium"),
+    (re.compile(r"ssrf", re.I), "A10", ["T1190"], "high"),
+    (re.compile(r"sqli|sql.?inject", re.I), "A03", ["T1190"], "high"),
+    (re.compile(r"xss|cross.?site.?script", re.I), "A03", ["T1190"], "high"),
+    (re.compile(r"rce|remote.?code|command.?inject|php.?inject|log4j|jndi", re.I), "A03", ["T1190", "T1059", "T1068"], "high"),
+    (re.compile(r"lfi|path.?traversal|directory.?traversal|local.?file.?inclusion", re.I), "A01", ["T1190"], "high"),
+    (re.compile(r"rfi|remote.?file.?inclusion", re.I), "A03", ["T1190"], "high"),
+    (re.compile(r"webshell|backdoor", re.I), "A01", ["T1505", "T1505.003"], "high"),
+    (re.compile(r"wordpress-uploads-listing", re.I), "A01", ["T1190"], "high"),
+    (re.compile(r"env-access|sensitive.?files|admin.?interface", re.I), "A01", ["T1190"], "high"),
+    (re.compile(r"wordpress.?login", re.I), "A07", ["T1110"], "high"),
+    (re.compile(r"brute(?:[-_ ]?force)?|\bbf\b|[-_/]bf(?:[-_/]|$)|ssh-slow-bf|ssh-bf", re.I), "A07", ["T1110"], "high"),
+    (re.compile(r"xmlrpc", re.I), "A05", ["T1595"], "medium"),
+    (re.compile(r"waf.?bypass|disable.?security|impair.?defense", re.I), "A05", ["T1562"], "medium"),
+    (re.compile(r"weak.?crypto|insecure.?tls", re.I), "A02", ["T1600"], "medium"),
+    (re.compile(r"vpatch|cve-\d{4}", re.I), "A06", ["T1190"], "medium"),
+    (re.compile(r"wordpress.?scan|http-wordpress", re.I), "A05", ["T1595"], "medium"),
+    (re.compile(r"wordpress", re.I), "A06", ["T1190"], "medium"),
+    (re.compile(r"probing|scanner|http-crawl|bad-user-agent|open-proxy|http-scan", re.I), "A05", ["T1595"], "medium"),
 ]
+_MITRE_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.I)
+_OOB_RE = re.compile(r"out-of-band|outofband|\boob\b|log-only", re.I)
 
 _NONE: dict[str, Any] = {
     "code": "none",
@@ -212,23 +253,97 @@ def _owasp_meta(code: str) -> dict[str, str]:
     return dict(_OWASP_BY_CODE.get(code) or {"code": code, "id": "", "name": "", "url": ""})
 
 
-def classify(name: str | None) -> dict[str, Any]:
-    """Map a CrowdSec scenario / AppSec / CRS name to OWASP Top 10:2021."""
+def _hit(code: str, attack: list[str], confidence: str) -> dict[str, Any]:
+    meta = _owasp_meta(code)
+    seen: set[str] = set()
+    techniques: list[str] = []
+    for tid in attack:
+        if tid in ATTACK and tid not in seen:
+            seen.add(tid)
+            techniques.append(tid)
+    return {
+        "code": code,
+        "id": meta.get("id") or "",
+        "name": meta.get("name") or "",
+        "url": meta.get("url") or "",
+        "attack": techniques,
+        "confidence": confidence,
+    }
+
+
+def is_noise_event(name: str | None) -> bool:
+    """True for CrowdSec engine/CAPI chatter that is not an attack finding."""
     text = str(name or "").strip()
     if not text:
+        return True
+    return bool(_NOISE_RE.search(text))
+
+
+def _mitre_from_alert(alert: dict | None) -> list[str]:
+    """Hub/LAPI MITRE IDs already in the local catalog. Ignore unknown IDs."""
+    if not isinstance(alert, dict):
+        return []
+    chunks: list[str] = []
+    for key in ("labels", "tags"):
+        val = alert.get(key)
+        if isinstance(val, list):
+            chunks.extend(str(item) for item in val)
+        elif val:
+            chunks.append(str(val))
+    meta = alert.get("meta")
+    if isinstance(meta, list):
+        for item in meta:
+            if isinstance(item, dict):
+                chunks.append(str(item.get("key") or ""))
+                chunks.append(str(item.get("value") or ""))
+    elif isinstance(meta, dict):
+        for key, val in meta.items():
+            chunks.append(str(key))
+            chunks.append(str(val))
+    found: list[str] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        for match in _MITRE_ID_RE.findall(str(chunk)):
+            parsed = re.match(r"t(\d{4}(?:\.\d{3})?)$", match, re.I)
+            if not parsed:
+                continue
+            tid = "T" + parsed.group(1)
+            if tid in ATTACK and tid not in seen:
+                seen.add(tid)
+                found.append(tid)
+    return found
+
+
+def classify(name: str | None, alert: dict | None = None) -> dict[str, Any]:
+    """Map a CrowdSec scenario / AppSec / CRS name to OWASP Top 10:2021.
+
+    Engine chatter returns none. CRS IDs must be six digits. Hub MITRE labels
+    in the alert override regex ATT&CK IDs when they are in the local catalog.
+    """
+    text = str(name or "").strip()
+    if not text or is_noise_event(text):
         return dict(_NONE)
-    for pattern, code, attack, confidence in _CLASSIFY_RULES:
-        if pattern.search(text):
-            meta = _owasp_meta(code)
-            return {
-                "code": code,
-                "id": meta.get("id") or "",
-                "name": meta.get("name") or "",
-                "url": meta.get("url") or "",
-                "attack": list(attack),
-                "confidence": confidence,
-            }
-    return dict(_NONE)
+    hit: dict[str, Any] | None = None
+    crs = _CRS_ID_RE.search(text)
+    if crs:
+        mapped = _CRS_CLASS.get(crs.group("gid"))
+        if mapped:
+            hit = _hit(*mapped)
+    if hit is None:
+        for pattern, code, attack, confidence in _CLASSIFY_RULES:
+            if pattern.search(text):
+                hit = _hit(code, attack, confidence)
+                break
+    if hit is None:
+        hit = dict(_NONE)
+    hub = _mitre_from_alert(alert)
+    if hub:
+        hit["attack"] = hub
+        if hit["confidence"] == "none":
+            hit["confidence"] = "medium"
+    if hit["code"] != "none" and _OOB_RE.search(text) and hit["confidence"] == "high":
+        hit["confidence"] = "medium"
+    return hit
 
 
 def _alert_ip(alert: dict) -> str:
@@ -310,7 +425,7 @@ def connectors() -> list[dict[str, Any]]:
             "MITRE ATT&CK",
             "local-catalog",
             "configured",
-            "Local ATT&CK Enterprise catalog (T1190–T1505.003). No GitHub download.",
+            "Local ATT&CK Enterprise subset. Tactics match attack.mitre.org. No GitHub download.",
         ),
         _connector(
             "INTERNAL_ENRICHMENT",
@@ -393,7 +508,12 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
         if not isinstance(alert, dict):
             continue
         name = _alert_name(alert)
-        hit = classify(name)
+        if is_noise_event(name):
+            continue
+        hit = classify(name, alert)
+        if hit["code"] == "none" and not hit.get("attack"):
+            if _OOB_RE.search(name) or "anomaly score" in name.lower():
+                continue
         cn, city = _alert_geo(alert)
         finding = {
             "when": alert.get("created_at") or alert.get("start_at") or "",

@@ -21,6 +21,7 @@ services:
       WAF_CONTROL: /var/lib/waf-control
       WAF_SITES_FILE: /var/lib/waf-control/sites.json
       WAF_ALLOWLIST: cso-operators
+      # Never set WAF_TRAEFIK_DYNAMIC_DIR. The console must not write Traefik files.
       PUBLIC_IP: ""
       # Optional edge marker + great-circle routes (operator-supplied, not GeoIP):
       # WAF_EDGE_LAT: "49.452"

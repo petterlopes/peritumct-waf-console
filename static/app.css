@@ -55,6 +55,10 @@ nav { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; o
 }
 .nav-btn svg { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
 .nav-btn.active, .nav-btn:hover { background: rgba(62, 224, 255, 0.08); color: var(--text); }
+.nav-label {
+  margin: 14px 12px 2px; font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
+}
 .nav-btn[data-view="mitre"] { color: var(--cyan); }
 .nav-btn[data-view="mitre"] .nav-tag {
   margin-left: auto;
@@ -378,7 +382,7 @@ td { padding: 10px 6px; border-bottom: 1px solid var(--stroke); vertical-align: 
 .code { background: #0b1220; border-radius: 12px; padding: 12px; overflow: auto; color: #b7c7e6; font-size: 12px; max-height: 320px; }
 #view-decisions .card, #view-alerts .card, #view-domains .card, #view-engine .card,
 #view-allowlists .card, #view-metrics .card, #view-map .card, #view-rules .card,
-#view-owasp .card, #view-mitre .card { min-height: auto; }
+#view-owasp .card, #view-mitre .card, #view-admin .card, #view-routes .card, #view-tunnels .card { min-height: auto; }
 
 .owasp-grid {
   display: grid;

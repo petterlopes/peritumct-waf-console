@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
   <link rel="icon" href="/waf/logo.png" type="image/png">
-  <link rel="stylesheet" href="/waf/app.css?v=3.7">
+  <link rel="stylesheet" href="/waf/app.css?v=3.9">
 </head>
 <body>
   <aside class="rail">
@@ -61,6 +61,11 @@
       <button class="nav-btn" data-view="metrics">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17h3v4H3v-4zm5-6h3v10H8V11zm5-5h3v15h-3V6zm5 8h3v7h-3v-7z"/></svg>
         <span data-i18n="nav.metrics">Metrics</span>
+      </button>
+      <div class="nav-label" data-i18n="nav.group.admin">Administration</div>
+      <button class="nav-btn" data-view="admin">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm10-10v6h8V3h-8zM3 21h8v-6H3v6zm10 0h8v-8h-8v8z"/></svg>
+        <span data-i18n="nav.admin">Admin</span>
       </button>
       <button class="nav-btn" data-view="domains">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 .01 20.01A10 10 0 0 0 12 2zm7.9 9h-3.2a15 15 0 0 0-1.4-6 8.1 8.1 0 0 1 4.6 6zM12 4.1c.9 1.2 1.6 3.3 1.9 6.9H10c.3-3.6 1-5.7 2-6.9zM4.1 13h3.2a15 15 0 0 0 1.4 6 8.1 8.1 0 0 1-4.6-6zM8.7 11H4.1a8.1 8.1 0 0 1 4.6-6 15 15 0 0 0-1.4 6zm2.4 8.9c-.9-1.2-1.6-3.3-1.9-6.9h3.9c-.3 3.6-1 5.7-2 6.9zM15.3 13h3.6a8.1 8.1 0 0 1-4.6 6 15 15 0 0 0 1-6z"/></svg>
@@ -683,6 +688,21 @@
       </article>
     </section>
 
+    <section id="view-admin" class="view hidden">
+      <article class="card glow-cyan">
+        <div class="card-head"><h2 data-i18n="admin.local_title">Local WAF tunnel</h2></div>
+        <p class="hint" data-i18n="admin.local_hint">This Teleport forward is only for opening the console on this workstation. It does not create Traefik routes, does not change bird/birdsso, and does not replace TCP passthrough.</p>
+        <pre class="code" id="adminTunnelCmd">tsh ssh -N -L 18990:127.0.0.1:18990 root@localhost</pre>
+        <p class="hint"><span data-i18n="admin.local_then">Then open</span> <a href="http://127.0.0.1:18990/waf/" target="_blank" rel="noopener noreferrer">http://127.0.0.1:18990/waf/</a></p>
+        <p class="hint" data-i18n="admin.local_script">Windows: .\\scripts\\waf-admin.ps1 tunnel</p>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="admin.title">WAF administration</h2></div>
+        <p class="hint" data-i18n="admin.hint">Operate CrowdSec policies, allowlists, decisions and engine posture. This console never writes Traefik dynamic.yaml.</p>
+        <div class="action-list" id="adminActions"></div>
+      </article>
+    </section>
+
     <section id="view-domains" class="view hidden">
       <div class="host-tiles" id="hostTiles"></div>
       <article class="card">
@@ -792,9 +812,9 @@
     </footer>
   </main>
   <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
-  <script src="/waf/world.js?v=3.7"></script>
-  <script src="/waf/i18n.js?v=3.7"></script>
-  <script src="/waf/map.js?v=3.7"></script>
-  <script src="/waf/app.js?v=3.7"></script>
+  <script src="/waf/world.js?v=3.9"></script>
+  <script src="/waf/i18n.js?v=3.9"></script>
+  <script src="/waf/map.js?v=3.9"></script>
+  <script src="/waf/app.js?v=3.9"></script>
 </body>
 </html>
