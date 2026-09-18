@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
-  <link rel="stylesheet" href="/waf/app.css?v=2.3">
+  <link rel="stylesheet" href="/waf/app.css?v=2.9">
 </head>
 <body>
   <aside class="rail">
@@ -17,7 +17,11 @@
       </div>
     </div>
     <nav>
-      <button class="nav-btn active" data-view="overview">
+      <button class="nav-btn active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        <span data-i18n="nav.dashboard">Dashboard</span>
+      </button>
+      <button class="nav-btn" data-view="overview">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9zm0 7h6v-5H4v5zm8 0h8V11h-8v9zm0-16v5h8V4h-8z"/></svg>
         <span data-i18n="nav.overview">Overview</span>
       </button>
@@ -75,19 +79,25 @@
   <main>
     <header class="top">
       <div>
-        <h1 id="viewTitle" data-i18n="nav.overview">Overview</h1>
+        <h1 id="viewTitle" data-i18n="nav.dashboard">Dashboard</h1>
         <p class="sub" data-i18n="subtitle">CrowdSec LAPI on loopback · fail-closed · CRS OOB log-only · admin network only</p>
       </div>
       <div class="top-actions">
+        <label class="search domain-filter">
+          <span class="sr-only" data-i18n="dash.domain">Domain</span>
+          <select id="domainFilter" aria-label="Domain">
+            <option value="" data-i18n="dash.all_domains">All domains</option>
+          </select>
+        </label>
         <label class="search">
           <span class="sr-only" data-i18n="search">Filter</span>
-          <input id="filterBox" type="search" data-i18n-placeholder="search_ph" placeholder="Filter IP, scenario, or ISO" autocomplete="off" title="Map country selection filters all tabs.">
+          <input id="filterBox" type="search" data-i18n-placeholder="search_ph" placeholder="Filter IP, scenario, or ISO" autocomplete="off" title="Click a country or point on the map to filter all tabs. Search is separate.">
         </label>
         <div id="mapFilterChip" class="filter-chip hidden">
           <span id="mapFilterLabel"></span>
           <button type="button" id="mapFilterClear" data-i18n="map.filter_clear">Clear</button>
         </div>
-        <p class="hint search-hint" data-i18n="search_hint">Map country selection filters all tabs.</p>
+        <p class="hint search-hint" data-i18n="search_hint">Click a country or point on the map to filter all tabs. Search is separate.</p>
         <div class="clock" id="clock">--:--:--</div>
         <div class="lang-switch" role="group" aria-label="Language">
           <button type="button" id="langEn" data-i18n="lang.en">EN</button>
@@ -97,7 +107,154 @@
       </div>
     </header>
 
-    <section id="view-overview" class="view">
+    <section id="view-dashboard" class="view">
+      <p class="hint" id="dashNote"></p>
+      <div class="dash-tabs" role="tablist">
+        <button type="button" class="dash-tab active" data-dash="security" data-i18n="dash.tab.security">Security</button>
+        <button type="button" class="dash-tab" data-dash="traffic" data-i18n="dash.tab.traffic">Traffic</button>
+        <button type="button" class="dash-tab" data-dash="origin" data-i18n="dash.tab.origin">Origin</button>
+        <button type="button" class="dash-tab" data-dash="performance" data-i18n="dash.tab.performance">Performance</button>
+        <button type="button" class="dash-tab" data-dash="events" data-i18n="dash.tab.events">Events</button>
+        <button type="button" class="dash-tab" data-dash="logs" data-i18n="dash.tab.logs">Logs</button>
+      </div>
+      <div class="dash-filter-bar">
+        <span id="dashWindow" class="dash-window">Last 24 hours · GMT-3</span>
+        <label class="search">
+          <span class="sr-only" data-i18n="dash.add_filter">Add filter</span>
+          <select id="dashFilterField" aria-label="Add filter">
+            <option value="ip">Source IP</option>
+            <option value="path">Path</option>
+            <option value="country">Country</option>
+            <option value="action">Action</option>
+            <option value="method">HTTP method</option>
+          </select>
+        </label>
+        <input id="dashFilterValue" type="search" placeholder="Value" autocomplete="off">
+        <button type="button" class="ghost" id="dashFilterAdd" data-i18n="dash.add_filter">Add filter</button>
+        <button type="button" class="ghost" id="dashFilterClear" data-i18n="dash.clear_filters">Clear</button>
+        <label class="search">
+          <span class="sr-only" data-i18n="dash.group">Group by</span>
+          <select id="dashGroupBy" aria-label="Group by">
+            <option value="" data-i18n="dash.group_none">No grouping</option>
+            <option value="action">Action</option>
+            <option value="country">Country</option>
+            <option value="host">Host</option>
+            <option value="service">Service</option>
+          </select>
+        </label>
+      </div>
+      <div id="dashFilterChips" class="filter-chip-row"></div>
+
+      <div id="dash-security" class="dash-panel">
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-head"><h2 data-i18n="dash.actions">Security action items</h2><span class="tag" data-i18n="tag.active">Active</span></div>
+            <div id="dashActions" class="action-list"></div>
+          </article>
+          <article class="card">
+            <div class="card-head"><h2 data-i18n="dash.tools">Detection tools</h2></div>
+            <div id="dashTools" class="tool-list"></div>
+          </article>
+        </div>
+        <article class="card glow-cyan">
+          <div class="card-head"><h2 data-i18n="dash.traffic_overview">Traffic overview</h2><span class="tag">24h LAPI</span></div>
+          <p class="hint" data-i18n="dash.traffic_hint">LAPI/AppSec events for the selected domain, last 24 h. Not Cloudflare HTTP volume.</p>
+          <div class="kpi-row" id="dashKpis"></div>
+          <div class="stack-bar" id="dashStack"></div>
+          <div class="legend-row" id="dashStackLegend"></div>
+        </article>
+      </div>
+
+      <div id="dash-traffic" class="dash-panel hidden">
+        <article class="card glow-cyan">
+          <div class="card-head"><h2 data-i18n="dash.series">Events over time</h2></div>
+          <svg id="dashSeries" viewBox="0 0 720 160" class="spark dash-series" preserveAspectRatio="none"></svg>
+          <div class="legend-row" id="dashLegend"></div>
+        </article>
+        <h3 class="dash-h" data-i18n="dash.top">Top statistics</h3>
+        <div class="top-grid" id="dashTop"></div>
+      </div>
+
+      <div id="dash-origin" class="dash-panel hidden">
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="dash.origin_title">Origin health</h2><span class="tag">loopback :443</span></div>
+          <p class="hint" data-i18n="dash.origin_hint">TLS probes to the in-scope FQDN on 127.0.0.1 and the public IP. Not Cloudflare Origin Analytics.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="th.host">Host</th>
+                  <th data-i18n="dash.origin_local">Origin</th>
+                  <th data-i18n="dash.origin_public">Public</th>
+                </tr>
+              </thead>
+              <tbody id="dashOriginBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <div id="dash-performance" class="dash-panel hidden">
+        <article class="card glow-cyan">
+          <div class="card-head"><h2 data-i18n="dash.perf_title">AppSec performance</h2><span class="tag">CrowdSec</span></div>
+          <p class="hint" id="dashPerfNote" data-i18n="dash.perf_hint">CrowdSec AppSec process lifetime — not 24 h Cloudflare traffic, cache, or bytes.</p>
+          <div class="kpi-row" id="dashPerf"></div>
+        </article>
+      </div>
+
+      <div id="dash-events" class="dash-panel hidden">
+        <article class="card">
+          <div class="card-head">
+            <h2 data-i18n="dash.events_title">Sampled events</h2>
+            <button type="button" class="ghost" id="dashCustomRule" data-i18n="dash.custom_rule">Create security policy</button>
+            <button type="button" class="ghost" id="dashExportEvents" data-i18n="dash.export">Export</button>
+          </div>
+          <p class="hint" data-i18n="dash.events_hint">Action, country, IP and CrowdSec service. Bot challenge is never listed because it stays OFF.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="th.when">When</th>
+                  <th data-i18n="th.action">Action</th>
+                  <th data-i18n="th.cc">CC</th>
+                  <th data-i18n="th.ip">IP</th>
+                  <th data-i18n="th.host">Host</th>
+                  <th data-i18n="dash.service">Service</th>
+                </tr>
+              </thead>
+              <tbody id="dashEventsBody"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="dashEventsPager"></div>
+        </article>
+      </div>
+
+      <div id="dash-logs" class="dash-panel hidden">
+        <article class="card">
+          <div class="card-head">
+            <h2 data-i18n="dash.logs_title">Sampled logs</h2>
+            <button type="button" class="ghost" id="dashExportLogs" data-i18n="dash.export">Export</button>
+          </div>
+          <p class="hint" data-i18n="dash.logs_hint">Time, source IP, host and path from CrowdSec event meta (target_fqdn / target_uri).</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="th.when">When</th>
+                  <th data-i18n="th.ip">IP</th>
+                  <th data-i18n="th.host">Host</th>
+                  <th data-i18n="dash.path">Path</th>
+                </tr>
+              </thead>
+              <tbody id="dashLogsBody"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="dashLogsPager"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="view-overview" class="view hidden">
       <div class="widget-grid">
         <article class="card glow-cyan">
           <div class="card-head"><h2 data-i18n="card.dashboard">Dashboard</h2><span class="tag active" data-i18n="tag.active">Active</span></div>
@@ -292,7 +449,7 @@
         <div class="card-head"><h2 data-i18n="alerts.title">Recent alerts</h2></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th data-i18n="th.when">When</th><th data-i18n="th.ip">IP</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.capacity">Capacity</th></tr></thead>
+            <thead><tr><th data-i18n="th.when">When</th><th data-i18n="th.ip">IP</th><th data-i18n="th.cc">ISO</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.capacity">Capacity</th></tr></thead>
             <tbody id="alertsBody"></tbody>
           </table>
         </div>
@@ -526,9 +683,9 @@
     </section>
   </main>
   <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
-  <script src="/waf/world.js?v=2.3"></script>
-  <script src="/waf/i18n.js?v=2.3"></script>
-  <script src="/waf/map.js?v=2.3"></script>
-  <script src="/waf/app.js?v=2.3"></script>
+  <script src="/waf/world.js?v=2.9"></script>
+  <script src="/waf/i18n.js?v=2.9"></script>
+  <script src="/waf/map.js?v=2.9"></script>
+  <script src="/waf/app.js?v=2.9"></script>
 </body>
 </html>

@@ -23,6 +23,7 @@ from pathlib import Path
 import control
 import catalog as catalog_mod
 import correlate
+import dashboard as dashmod
 import ga
 
 BIND = os.environ.get("WAF_BIND", "127.0.0.1")
@@ -205,7 +206,7 @@ def http_probe(host: str, server: str) -> dict:
     try:
         sock = ctx.wrap_socket(socket.create_connection((server, 443), timeout=8), server_hostname=host)
         sock.sendall(
-            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.5\r\n"
+            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.6\r\n"
             f"Accept-Encoding: identity\r\nConnection: close\r\n\r\n".encode()
         )
         data = b""
@@ -240,7 +241,7 @@ def engine_status() -> dict:
         "include_large_uploads": bool(re.search(r"INCLUDE_LARGE_UPLOADS\s*[:=]\s*(1|true|yes)", acquis, re.I)),
         "creds_present": CREDS_PATH.is_file(),
         "bouncer_key_present": bool(bouncer_key()),
-        "version": "waf-console/1.0.5",
+        "version": "waf-console/1.0.6",
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
     }
 
@@ -291,10 +292,11 @@ def source_of(alert: dict) -> dict:
     if not isinstance(src, dict):
         src = {}
     event0 = ((alert.get("events") or [{}])[0] or {}).get("source") or {}
-    if not src.get("ip") and isinstance(event0, dict):
-        src = {**event0, **src}
+    if not isinstance(event0, dict):
+        event0 = {}
+    src = {**event0, **src}
     ip = src.get("ip") or src.get("value") or ""
-    cn = str(src.get("cn") or src.get("country") or "").upper()
+    cn = str(src.get("cn") or src.get("country") or alert.get("cn") or "").upper()
     lat, lon = src.get("latitude"), src.get("longitude")
     try:
         lat_f = float(lat) if lat not in (None, "") else None
@@ -600,7 +602,7 @@ def add_ban(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "waf-console/1.0.5"
+    server_version = "waf-console/1.0.6"
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -683,6 +685,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, **eng})
         if path == "/api/overview":
             return self._overview()
+        if path == "/api/dashboard":
+            return self._dashboard(parsed)
         if path == "/api/decisions":
             return self._decisions()
         if path == "/api/alerts":
@@ -867,6 +871,36 @@ class Handler(BaseHTTPRequestHandler):
             },
         )
 
+
+    def _dashboard(self, parsed):
+        qs = urllib.parse.parse_qs(parsed.query)
+        host = (qs.get("host") or [""])[0]
+        filters = {k: (qs.get(k) or [""])[0] for k in ("ip", "path", "country", "action", "method")}
+        try:
+            alerts = fetch_alerts(200)
+        except Exception as exc:
+            return self._json_error(502, str(exc))
+        decisions, _err = fetch_local_decisions()
+        hosts = catalog_mod.in_scope_hosts()
+        origin = [http_probe(h, "127.0.0.1") for h in hosts]
+        try:
+            mx = scrape_metrics()
+        except Exception:
+            mx = {}
+        payload = dashmod.build(
+            alerts,
+            decisions=prefer_local_decisions(decisions),
+            engine=engine_status(),
+            hosts=hosts,
+            host=host,
+            origin_probes=origin,
+            hub_rules=control.hub_appsec_rules(),
+            filters=filters,
+            appsec=(mx.get("appsec") if isinstance(mx, dict) else None),
+            edge=edge_point(),
+        )
+        return self._send(200, payload)
+
     def _decisions(self):
         try:
             data, err = fetch_local_decisions()
@@ -879,7 +913,15 @@ class Handler(BaseHTTPRequestHandler):
     def _alerts(self):
         try:
             data = fetch_alerts(80)
-            return self._send(200, {"ok": True, "items": data})
+            items = []
+            for alert in data:
+                if isinstance(alert, dict):
+                    cn = source_of(alert).get("cn") or ""
+                    if cn:
+                        alert["cn"] = cn
+                    dashmod.enrich_alert(alert)
+                items.append(alert)
+            return self._send(200, {"ok": True, "items": items})
         except Exception as exc:
             return self._json_error(502, str(exc))
 

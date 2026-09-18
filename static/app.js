@@ -1,7 +1,11 @@
 const $ = (id) => document.getElementById(id)
-const views = ["overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "domains", "engine"]
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]))
+}
+const views = ["dashboard", "overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "domains", "engine"]
 function viewTitles() {
   return {
+    dashboard: t("nav.dashboard", "Dashboard"),
     overview: t("nav.overview", "Overview"),
     sites: t("nav.sites", "Policies"),
     map: t("nav.map", "Map"),
@@ -17,10 +21,15 @@ function viewTitles() {
   }
 }
 
-let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null }
+let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null, dashboard: null }
 let owaspSelected = ""
 let mitreSelected = ""
 let mitreTactic = ""
+let dashTab = "security"
+let dashPage = { events: 0, logs: 0 }
+let dashFilters = { ip: "", path: "", country: "", action: "", method: "" }
+let dashGroupBy = ""
+let dashOpenRow = ""
 
 function fmtTime(ts) {
   if (!ts) return "—"
@@ -120,6 +129,22 @@ function selectedIso() {
   return (typeof mapUi !== "undefined" && mapUi && mapUi.selected) || ""
 }
 
+function selectedHost() {
+  const el = $("domainFilter")
+  return el ? (el.value || "").trim().toLowerCase() : ""
+}
+
+function hostOf(item) {
+  return String((item && (item.host || item.target_fqdn)) || "").toLowerCase()
+}
+
+function hostMatch(item) {
+  const host = selectedHost()
+  if (!host) return true
+  const got = hostOf(item)
+  return got === host || got.endsWith("." + host)
+}
+
 function geoMatch(cn) {
   const iso = selectedIso()
   if (!iso) return true
@@ -130,8 +155,11 @@ function countryOf(alert) {
   const src = (alert && alert.source) || {}
   let cn = src.cn || src.country || ""
   if (!cn && alert && alert.events && alert.events[0] && alert.events[0].source) {
-    cn = alert.events[0].source.cn || alert.events[0].source.country || ""
+    const evSrc = alert.events[0].source
+    cn = evSrc.cn || evSrc.country || ""
   }
+  if (!cn && alert) cn = alert.cn || ""
+  if (!cn) cn = cnOfIp(ipOf(alert))
   return String(cn || "").toUpperCase()
 }
 
@@ -141,25 +169,18 @@ function mapPoints() {
 }
 
 function cnOfIp(ip) {
-  const hit = mapPoints().find((p) => p && p.ip === ip)
-  return hit ? String(hit.cn || "").toUpperCase() : ""
-}
-
-function syncMapFromFilterBox() {
-  if (typeof mapUi === "undefined" || !mapUi) return
-  const q = ($("filterBox") && $("filterBox").value || "").trim()
-  if (!q) {
-    mapUi.selected = ""
-    return
-  }
-  if (/^[A-Za-z]{2}$/.test(q)) mapUi.selected = q.toUpperCase()
+  if (!ip || ip === "—") return ""
+  const needle = String(ip).toLowerCase()
+  const hit = mapPoints().find((p) => p && String(p.ip || "").toLowerCase() === needle)
+  if (hit) return String(hit.cn || "").toUpperCase()
+  const findings = (cache.correlation && cache.correlation.findings) || []
+  const f = findings.find((x) => x && String(x.ip || "").toLowerCase() === needle)
+  return f ? String(f.cn || "").toUpperCase() : ""
 }
 
 function matchesFilter(text) {
   const q = ($("filterBox").value || "").trim().toLowerCase()
   if (!q) return true
-  const iso = selectedIso()
-  if (iso && q === iso.toLowerCase()) return true
   return String(text).toLowerCase().includes(q)
 }
 
@@ -197,7 +218,7 @@ function renderOverview(data) {
   const pct = c.domains ? Math.round((100 * c.domains_ok) / c.domains) : 0
   setRing("domRing", pct)
   setRing("localRing", c.decisions_local ? Math.min(100, 12 + c.decisions_local * 8) : 8)
-  const alerts = (data.alerts || []).filter((a) => geoMatch(countryOf(a)))
+  const alerts = (data.alerts || []).filter((a) => geoMatch(countryOf(a)) && hostMatch(a))
   const buckets = hourBuckets(alerts)
   areaChart($("sparkCyan"), buckets, "#3ee0ff", "#3ee0ff")
   areaChart($("sparkGreen"), buckets, "#3dff9c", "#3dff9c")
@@ -254,7 +275,7 @@ function renderMapView(payload) {
   renderMap($("mapFull"), map, { interactive: true })
   const selected = mapUi.selected
   $("mapCountries").innerHTML = (map.countries || []).map((c) => {
-    const active = selected && selected === c.cn ? " active" : ""
+    const active = selected && geoMatch(c.cn) ? " active" : ""
     const name = (typeof countryMeta === "function" ? countryMeta(c.cn).name : c.cn)
     const gaBit = (c.ga_sessions != null) ? (" · " + t("map.ga", "GA") + " " + c.ga_sessions) : ""
     const vclass = c.ga_verdict ? " ga-" + c.ga_verdict : ""
@@ -264,7 +285,7 @@ function renderMapView(payload) {
     const btn = ev.target.closest("[data-iso]")
     if (btn) selectCountry(btn.getAttribute("data-iso"))
   }
-  const points = (map.points || []).filter((p) => !selected || p.cn === selected)
+  const points = (map.points || []).filter((p) => geoMatch(p.cn))
   $("mapPoints").innerHTML = points.map((p) =>
     `<tr><td><code>${p.ip || ""}</code></td><td>${p.cn || ""}</td><td>${p.as_name || ""}</td><td>${p.scenario || ""}</td><td>${p.approx ? t("centroide") : "LAPI"}</td></tr>`
   ).join("") || `<tr><td colspan="5">${t("no_geo")}</td></tr>`
@@ -417,13 +438,14 @@ function renderDecisions(items) {
 }
 
 function renderAlerts(items) {
-  const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a), countryOf(a)].join(" ")) && geoMatch(countryOf(a)))
+  const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a), countryOf(a), hostOf(a)].join(" ")) && geoMatch(countryOf(a)) && hostMatch(a))
   $("alertsBody").innerHTML = filtered.map((a) => `<tr>
     <td>${fmtTime(a.created_at)}</td>
     <td><code>${ipOf(a)}</code></td>
+    <td>${countryOf(a) || "—"}</td>
     <td>${scenarioOf(a)}</td>
     <td>${a.capacity || (a.decisions ? a.decisions.length : "—")}</td>
-  </tr>`).join("") || `<tr><td colspan="4">${t("alerts.empty")}</td></tr>`
+  </tr>`).join("") || `<tr><td colspan="5">${t("alerts.empty")}</td></tr>`
 }
 
 function renderOwasp(data) {
@@ -456,6 +478,7 @@ function renderOwasp(data) {
   const findings = (data.findings || []).filter((f) => {
     if (owaspSelected && f.owasp !== owaspSelected) return false
     if (!geoMatch(f.cn)) return false
+    if (!hostMatch(f)) return false
     return matchesFilter([f.when, f.ip, f.cn, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
   })
   const body = $("owaspFindings")
@@ -588,6 +611,7 @@ function renderMitre(data) {
     if (mitreSelected && !(f.attack || []).includes(mitreSelected)) return false
     if (mitreTactic && !(f.attack || []).some((id) => tacticIds.includes(id))) return false
     if (!geoMatch(f.cn)) return false
+    if (!hostMatch(f)) return false
     return matchesFilter([f.when, f.ip, f.cn, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
   })
   const body = $("mitreFindings")
@@ -632,16 +656,277 @@ function renderDomains(data) {
   }).join("")
 }
 
+function fillDomainFilter(hosts) {
+  const sel = $("domainFilter")
+  if (!sel) return
+  const current = sel.value
+  const opts = ["<option value=\"\">" + t("dash.all_domains", "All domains") + "</option>"]
+  ;(hosts || []).forEach((h) => {
+    opts.push("<option value=\"" + esc(h) + "\">" + esc(h) + "</option>")
+  })
+  sel.innerHTML = opts.join("")
+  const saved = localStorage.getItem("waf-domain-v1") || current || ""
+  if (saved && (hosts || []).indexOf(saved) >= 0) sel.value = saved
+}
+
+function dashQuery() {
+  const q = new URLSearchParams()
+  const host = selectedHost()
+  if (host) q.set("host", host)
+  Object.keys(dashFilters).forEach((k) => {
+    if (dashFilters[k]) q.set(k, dashFilters[k])
+  })
+  const s = q.toString()
+  return s ? ("?" + s) : ""
+}
+
+function renderDashChips() {
+  const el = $("dashFilterChips")
+  if (!el) return
+  const chips = []
+  Object.keys(dashFilters).forEach((k) => {
+    if (!dashFilters[k]) return
+    chips.push("<span class=\"filter-chip\">" + esc(k) + "=" + esc(dashFilters[k]) + " <button type=\"button\" data-chip=\"" + esc(k) + "\">×</button></span>")
+  })
+  el.innerHTML = chips.join("")
+  el.classList.toggle("hidden", chips.length === 0)
+}
+
+function dashLines(svg, series) {
+  if (!svg || !series) return
+  const ev = series.events || []
+  const bl = series.blocked || []
+  const lg = series.logged || []
+  const max = Math.max(1, ...ev, ...bl, ...lg)
+  const w = 720
+  const hgt = 160
+  const n = Math.max(ev.length, 2)
+  const step = w / (n - 1)
+  const path = (arr, color) => {
+    const pts = arr.map((v, i) => (i * step).toFixed(1) + " " + (hgt - 12 - (v / max) * (hgt - 24)).toFixed(1))
+    return "<path d=\"M " + pts.join(" L ") + "\" fill=\"none\" stroke=\"" + color + "\" stroke-width=\"2.2\"></path>"
+  }
+  svg.innerHTML = path(ev, "#8ea0c0") + path(lg, "#3ee0ff") + path(bl, "#ffb020")
+}
+
+function topCard(title, pack, key) {
+  if (!pack || !pack.available) {
+    return "<article class=\"top-card\"><h3>" + title + "</h3><p class=\"na\">" + t("dash.na", "Not in LAPI event meta") + "</p></article>"
+  }
+  const items = pack.items || []
+  const max = Math.max(1, ...items.map((i) => i.count || 0))
+  const rows = items.map((i) => {
+    const w = Math.round(100 * (i.count || 0) / max)
+    const click = key ? " data-filter-key=\"" + esc(key) + "\" data-filter-val=\"" + esc(i.label) + "\"" : ""
+    return "<div class=\"bar-row" + (key ? " clickable" : "") + "\"" + click + "><div><div>" + esc(i.label) + "</div><div class=\"track\"><span style=\"width:" + w + "%\"></span></div></div><b>" + i.count + "</b></div>"
+  }).join("") || "<p class=\"na\">" + t("empty", "no data") + "</p>"
+  return "<article class=\"top-card\"><h3>" + title + "</h3>" + rows + "</article>"
+}
+
+function pageSlice(items, key) {
+  const size = 10
+  const page = dashPage[key] || 0
+  const start = page * size
+  return { rows: (items || []).slice(start, start + size), page, pages: Math.max(1, Math.ceil((items || []).length / size)), total: (items || []).length }
+}
+
+function renderPager(id, key, total) {
+  const el = $(id)
+  if (!el) return
+  const size = 10
+  const pages = Math.max(1, Math.ceil(total / size))
+  if (dashPage[key] >= pages) dashPage[key] = 0
+  el.innerHTML = "<span>" + (dashPage[key] * size + 1) + "–" + Math.min(total, (dashPage[key] + 1) * size) + " / " + total + "</span>" +
+    "<button type=\"button\" data-pg=\"" + key + "\" data-d=\"-1\">‹</button>" +
+    "<button type=\"button\" data-pg=\"" + key + "\" data-d=\"1\">›</button>"
+}
+
+function exportCsv(name, rows, cols) {
+  const lines = [cols.join(",")]
+  rows.forEach((r) => {
+    lines.push(cols.map((c) => "\"" + String(r[c] == null ? "" : r[c]).replace(/\"/g, "\"\"") + "\"").join(","))
+  })
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" })
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function groupedEvents(items) {
+  if (!dashGroupBy) return items || []
+  const groups = {}
+  ;(items || []).forEach((r) => {
+    const g = r[dashGroupBy] || "—"
+    groups[g] = (groups[g] || 0) + 1
+  })
+  return Object.keys(groups).sort((a, b) => groups[b] - groups[a]).map((label) => ({
+    _group: true,
+    label,
+    count: groups[label]
+  }))
+}
+
+function detailRow(r, cols) {
+  const bits = ["method", "ua", "ja4h", "asn", "zones", "data", "http_version", "rule_ids", "scenario"]
+    .filter((k) => r[k])
+    .map((k) => "<div><span>" + esc(k) + "</span><code>" + esc(r[k]) + "</code></div>")
+    .join("")
+  return "<tr class=\"dash-detail\"><td colspan=\"" + cols + "\"><div class=\"dash-detail-grid\">" + (bits || "<span class=\"na\">" + t("dash.na", "Not in LAPI event meta") + "</span>") + "</div></td></tr>"
+}
+
+function rowKey(r, i) {
+  return [r.when, r.ip, r.path, i].join("|")
+}
+
+function renderDashboard(data) {
+  data = data || cache.dashboard || {}
+  if ($("dashNote")) $("dashNote").textContent = data.note || t("dash.note", "LAPI/AppSec events — not Cloudflare HTTP volume.")
+  if ($("dashWindow")) $("dashWindow").textContent = data.window_label || t("dash.window", "Last 24 hours · GMT-3")
+  fillDomainFilter(data.hosts || [])
+  renderDashChips()
+  const k = data.kpis || {}
+  if ($("dashKpis")) {
+    $("dashKpis").innerHTML =
+      "<div class=\"kpi-tile\"><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (k.events ?? 0) + "</b></div>" +
+      "<div class=\"kpi-tile orange\"><span>" + t("dash.kpi.blocked", "Blocked") + "</span><b>" + (k.blocked ?? 0) + "</b></div>" +
+      "<div class=\"kpi-tile cyan\"><span>" + t("dash.kpi.logged", "Logged (OOB)") + "</span><b>" + (k.logged ?? 0) + "</b></div>" +
+      "<div class=\"kpi-tile green\"><span>" + t("dash.kpi.origin", "Origin 200") + "</span><b>" + (k.origin_ok ?? 0) + "/" + (k.origin_n ?? 0) + "</b></div>"
+  }
+  const tr = data.traffic || {}
+  const tot = Math.max(1, tr.total || 0)
+  if ($("dashStack")) {
+    $("dashStack").innerHTML =
+      "<i class=\"blocked\" style=\"width:" + (100 * (tr.blocked || 0) / tot) + "%\"></i>" +
+      "<i class=\"logged\" style=\"width:" + (100 * (tr.logged || 0) / tot) + "%\"></i>" +
+      "<i class=\"alert\" style=\"width:" + (100 * (tr.alerted || 0) / tot) + "%\"></i>"
+  }
+  if ($("dashStackLegend")) {
+    $("dashStackLegend").innerHTML =
+      "<span class=\"leg-blocked\">" + t("dash.kpi.blocked", "Blocked") + " " + (tr.blocked || 0) + "</span>" +
+      "<span class=\"leg-logged\">" + t("dash.kpi.logged", "Logged") + " " + (tr.logged || 0) + "</span>" +
+      "<span>" + t("dash.kpi.alerts", "Alerts") + " " + (tr.alerted || 0) + "</span>"
+  }
+  const actions = (data.action_items || []).map((it) =>
+    "<div class=\"action-row\"><div><span class=\"sev " + String(it.severity || "").toLowerCase() + "\">" + esc(it.severity || "") + "</span><h3>" + esc(it.title || "") + "</h3><small>" + esc((it.tags || []).join(" · ")) + "</small></div><button type=\"button\" data-viewjump=\"" + esc(it.view || "engine") + "\">" + t("dash.review", "Review") + "</button></div>"
+  ).join("") || "<p class=\"hint\">" + t("empty", "no data") + "</p>"
+  if ($("dashActions")) $("dashActions").innerHTML = actions
+  const tools = (data.detection_tools || []).map((it) =>
+    "<div class=\"tool-row\"><div><h3>" + esc(it.name || "") + "</h3><small>" + esc(it.note || "") + "</small></div><span class=\"status " + (it.running ? "on" : "off") + "\">" + (it.running ? t("dash.running", "Running") : t("dash.off", "Off")) + " · " + (it.count || 0) + "</span></div>"
+  ).join("")
+  if ($("dashTools")) $("dashTools").innerHTML = tools
+  dashLines($("dashSeries"), data.series)
+  if ($("dashLegend")) {
+    $("dashLegend").innerHTML =
+      "<span>" + t("dash.kpi.events", "Events") + "</span><span>" + t("dash.kpi.logged", "Logged") + "</span><span>" + t("dash.kpi.blocked", "Blocked") + "</span>" +
+      "<span>" + esc((data.series && data.series.tz) || "GMT-3") + "</span>"
+  }
+  const top = data.top || {}
+  if ($("dashTop")) {
+    $("dashTop").innerHTML = [
+      topCard(t("dash.top.ips", "Source IPs"), top.ips, "ip"),
+      topCard(t("dash.top.paths", "Top paths"), top.paths, "path"),
+      topCard(t("dash.top.countries", "Countries"), top.countries, "country"),
+      topCard(t("dash.top.hosts", "Top hosts"), top.hosts, "host"),
+      topCard(t("dash.top.asns", "ASNs"), top.asns, ""),
+      topCard(t("dash.top.browsers", "Browsers"), top.browsers, ""),
+      topCard(t("dash.top.os", "Operating systems"), top.os, ""),
+      topCard(t("dash.top.devices", "Device types"), top.devices, ""),
+      topCard(t("dash.top.ua", "User agents"), top.user_agents, ""),
+      topCard(t("dash.top.methods", "HTTP methods"), top.methods, "method"),
+      topCard(t("dash.top.http", "HTTP versions"), top.http_versions, ""),
+      topCard(t("dash.top.ja4h", "JA4H fingerprints"), top.ja4h, ""),
+      topCard(t("dash.top.cache", "Cache statuses"), top.cache, ""),
+      topCard(t("dash.top.status", "Status codes"), top.status, ""),
+      topCard(t("dash.top.zones", "Matched zones"), top.zones, ""),
+      topCard(t("dash.top.edge", "WAF edge"), top.datacenters, ""),
+      topCard(t("dash.top.services", "Security services"), top.services, ""),
+      topCard(t("dash.top.actions", "Security actions"), top.actions, "action")
+    ].join("")
+  }
+  const origin = data.origin || (cache.domains && cache.domains.origin) || []
+  const pubMap = {}
+  ;((cache.domains && cache.domains.public) || data.public || []).forEach((p) => { pubMap[p.host] = p })
+  if ($("dashOriginBody")) {
+    $("dashOriginBody").innerHTML = origin.map((d) => {
+      const p = pubMap[d.host] || {}
+      const oc = d.status === 200 ? "ok" : "bad"
+      const pc = p.status === 200 ? "ok" : "bad"
+      return "<tr><td>" + esc(d.host) + "</td><td class=\"" + oc + "\">" + esc(d.status || d.error || "—") + "</td><td class=\"" + pc + "\">" + esc(p.status || p.error || "—") + "</td></tr>"
+    }).join("") || "<tr><td colspan=\"3\">" + t("empty") + "</td></tr>"
+  }
+  const perf = data.appsec || {}
+  if ($("dashPerfNote") && perf.note) $("dashPerfNote").textContent = perf.note
+  if ($("dashPerf")) {
+    $("dashPerf").innerHTML = perf.available
+      ? ("<div class=\"kpi-tile\"><span>" + t("dash.kpi.inspected", "AppSec inspected") + "</span><b>" + (perf.inspected ?? 0) + "</b></div>" +
+         "<div class=\"kpi-tile orange\"><span>" + t("dash.kpi.appsec_blocks", "AppSec blocks") + "</span><b>" + (perf.blocks ?? 0) + "</b></div>" +
+         "<div class=\"kpi-tile\"><span>" + t("dash.kpi.rule_hits", "Rule hits") + "</span><b>" + (perf.rule_hits ?? 0) + "</b></div>" +
+         "<div class=\"kpi-tile cyan\"><span>" + t("dash.kpi.inband_ms", "In-band ms") + "</span><b>" + (perf.inband_ms ?? 0) + "</b></div>" +
+         "<div class=\"kpi-tile\"><span>" + t("dash.kpi.outband_ms", "Out-of-band ms") + "</span><b>" + (perf.outband_ms ?? 0) + "</b></div>")
+      : "<p class=\"na\">" + t("dash.na", "Not in LAPI event meta") + "</p>"
+  }
+  const eventsSrc = groupedEvents(data.events || [])
+  const ev = pageSlice(eventsSrc, "events")
+  if ($("dashEventsBody")) {
+    if (dashGroupBy) {
+      $("dashEventsBody").innerHTML = ev.rows.map((r) => "<tr><td colspan=\"6\"><b>" + esc(r.label) + "</b> · " + r.count + "</td></tr>").join("") || "<tr><td colspan=\"6\">" + t("empty") + "</td></tr>"
+    } else {
+      $("dashEventsBody").innerHTML = ev.rows.map((r, i) => {
+        const key = rowKey(r, i)
+        const open = dashOpenRow === key ? detailRow(r, 6) : ""
+        return "<tr class=\"dash-row\" data-rk=\"" + esc(key) + "\"><td>" + esc(fmtTime(r.when)) + "</td><td>" + esc(r.action || "") + "</td><td>" + esc(r.country || "—") + "</td><td><code>" + esc(r.ip || "") + "</code></td><td>" + esc(r.host || "") + "</td><td>" + esc(r.service || "") + "</td></tr>" + open
+      }).join("") || "<tr><td colspan=\"6\">" + t("empty") + "</td></tr>"
+    }
+  }
+  renderPager("dashEventsPager", "events", ev.total)
+  const lg = pageSlice(data.logs || [], "logs")
+  if ($("dashLogsBody")) {
+    $("dashLogsBody").innerHTML = lg.rows.map((r, i) => {
+      const key = "log|" + rowKey(r, i)
+      const open = dashOpenRow === key ? detailRow(r, 4) : ""
+      return "<tr class=\"dash-row\" data-rk=\"" + esc(key) + "\"><td>" + esc(fmtTime(r.when)) + "</td><td><code>" + esc(r.ip || "") + "</code></td><td>" + esc(r.host || "") + "</td><td><code>" + esc(r.path || "") + "</code></td></tr>" + open
+    }).join("") || "<tr><td colspan=\"4\">" + t("empty") + "</td></tr>"
+  }
+  renderPager("dashLogsPager", "logs", lg.total)
+}
+
+function showDashTab(name) {
+  dashTab = name || "security"
+  document.querySelectorAll(".dash-tab").forEach((btn) => btn.classList.toggle("active", btn.dataset.dash === dashTab))
+  ;["security", "traffic", "origin", "performance", "events", "logs"].forEach((id) => {
+    const node = $("dash-" + id)
+    if (node) node.classList.toggle("hidden", id !== dashTab)
+  })
+}
+
+async function setDashFilter(key, value) {
+  if (key === "host") {
+    const sel = $("domainFilter")
+    if (sel) sel.value = value || ""
+    localStorage.setItem("waf-domain-v1", selectedHost())
+  } else if (Object.prototype.hasOwnProperty.call(dashFilters, key)) {
+    dashFilters[key] = value || ""
+  }
+  dashPage = { events: 0, logs: 0 }
+  try { await loadDashboard() } catch (err) { setLive(false, String(err.message || err)) }
+}
+
+async function loadDashboard() {
+  cache.dashboard = await api("/api/dashboard" + dashQuery())
+  renderDashboard(cache.dashboard)
+}
+
 function applyFilter() {
-  syncMapFromFilterBox()
   renderDecisions(cache.decisions)
   renderAlerts(cache.alerts)
   renderOwasp(cache.correlation)
   renderMitre(cache.correlation)
   if (cache.overview) renderOverview(cache.overview)
+  if (cache.dashboard) renderDashboard(cache.dashboard)
   const map = (cache.coverage && cache.coverage.map) || (typeof mapUi !== "undefined" && mapUi && mapUi.payload)
   if (map && typeof renderMapView === "function") renderMapView(map)
-  if (map && typeof renderMap === "function" && $("mapMini")) renderMap($("mapMini"), map, { interactive: false })
   renderFilterChip()
   renderGaPrecision(cache.correlation, "gaOverview")
 }
@@ -660,6 +945,7 @@ async function loadCore() {
   renderDomains(domains)
   applyFilter()
   $("enginePre").textContent = JSON.stringify(engine, null, 2)
+  await loadDashboard()
 }
 
 async function loadCoverage() {
@@ -703,9 +989,77 @@ if (mitreOverviewCard) {
 }
 $("refreshBtn").addEventListener("click", loadAll)
 $("filterBox").addEventListener("input", applyFilter)
+if ($("domainFilter")) $("domainFilter").addEventListener("change", async () => {
+  localStorage.setItem("waf-domain-v1", selectedHost())
+  dashPage = { events: 0, logs: 0 }
+  try { await loadDashboard() } catch (err) { setLive(false, String(err.message || err)) }
+  applyFilter()
+})
+document.querySelectorAll(".dash-tab").forEach((btn) => {
+  btn.addEventListener("click", () => showDashTab(btn.dataset.dash))
+})
+if ($("dashFilterAdd")) $("dashFilterAdd").addEventListener("click", () => {
+  const key = ($("dashFilterField") && $("dashFilterField").value) || "ip"
+  const val = (($("dashFilterValue") && $("dashFilterValue").value) || "").trim()
+  if (!val) return
+  setDashFilter(key, val)
+})
+if ($("dashFilterValue")) $("dashFilterValue").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") {
+    ev.preventDefault()
+    if ($("dashFilterAdd")) $("dashFilterAdd").click()
+  }
+})
+if ($("dashFilterClear")) $("dashFilterClear").addEventListener("click", async () => {
+  dashFilters = { ip: "", path: "", country: "", action: "", method: "" }
+  dashPage = { events: 0, logs: 0 }
+  try { await loadDashboard() } catch (err) { setLive(false, String(err.message || err)) }
+})
+if ($("dashFilterChips")) $("dashFilterChips").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-chip]")
+  if (!btn) return
+  setDashFilter(btn.getAttribute("data-chip"), "")
+})
+if ($("dashGroupBy")) $("dashGroupBy").addEventListener("change", () => {
+  dashGroupBy = $("dashGroupBy").value || ""
+  dashPage = { events: 0, logs: 0 }
+  renderDashboard(cache.dashboard)
+})
+if ($("dashTop")) $("dashTop").addEventListener("click", (ev) => {
+  const row = ev.target.closest("[data-filter-key]")
+  if (!row) return
+  setDashFilter(row.getAttribute("data-filter-key"), row.getAttribute("data-filter-val") || "")
+})
+if ($("dashCustomRule")) $("dashCustomRule").addEventListener("click", () => showView("sites"))
+;["dashEventsBody", "dashLogsBody"].forEach((id) => {
+  if (!$(id)) return
+  $(id).addEventListener("click", (ev) => {
+    const row = ev.target.closest("[data-rk]")
+    if (!row) return
+    const key = row.getAttribute("data-rk")
+    dashOpenRow = dashOpenRow === key ? "" : key
+    renderDashboard(cache.dashboard)
+  })
+})
+if ($("dashActions")) $("dashActions").addEventListener("click", (ev) => {
+  const jump = ev.target.closest("[data-viewjump]")
+  if (jump) showView(jump.getAttribute("data-viewjump"))
+})
+;["dashEventsPager", "dashLogsPager"].forEach((id) => {
+  if (!$(id)) return
+  $(id).addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-pg]")
+    if (!btn) return
+    const key = btn.getAttribute("data-pg")
+    const d = Number(btn.getAttribute("data-d") || 0)
+    dashPage[key] = Math.max(0, (dashPage[key] || 0) + d)
+    renderDashboard(cache.dashboard)
+  })
+})
+if ($("dashExportEvents")) $("dashExportEvents").onclick = () => exportCsv("waf-events.csv", (cache.dashboard && cache.dashboard.events) || [], ["when", "action", "country", "ip", "host", "service", "method", "path"])
+if ($("dashExportLogs")) $("dashExportLogs").onclick = () => exportCsv("waf-logs.csv", (cache.dashboard && cache.dashboard.logs) || [], ["when", "ip", "host", "path", "method", "ua"])
 if ($("mapFilterClear")) $("mapFilterClear").addEventListener("click", () => {
   if (typeof mapUi !== "undefined") mapUi.selected = ""
-  if ($("filterBox")) $("filterBox").value = ""
   applyFilter()
 })
 $("unbanForm").addEventListener("submit", (ev) => {

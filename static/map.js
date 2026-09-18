@@ -3,7 +3,7 @@ const MAP_W = 960
 const MAP_H = 500
 const ROBINSON_X = [1, 0.9986, 0.9954, 0.99, 0.9822, 0.973, 0.96, 0.9427, 0.9216, 0.8962, 0.8679, 0.835, 0.7986, 0.7597, 0.7186, 0.6732, 0.6213, 0.5722, 0.5322]
 const ROBINSON_Y = [0, 0.062, 0.124, 0.186, 0.248, 0.31, 0.372, 0.434, 0.4958, 0.5571, 0.6176, 0.6769, 0.7346, 0.7903, 0.8435, 0.8936, 0.9394, 0.9761, 1]
-const mapUi = { scale: 1, tx: 0, ty: 0, selected: "", arcs: true, drag: null, moved: 0, payload: null }
+const mapUi = { scale: 1, tx: 0, ty: 0, selected: "", arcs: true, drag: null, moved: 0, payload: null, hit: null, armed: false }
 
 function mapEl(id) { return document.getElementById(id) }
 
@@ -146,12 +146,15 @@ function showMapTip(html, ev) {
   tip.style.top = y + "px"
 }
 
-function selectCountry(iso) {
+function selectCountry(iso, opts) {
   iso = (iso || "").toUpperCase()
-  if (mapUi.selected && mapUi.selected === iso) iso = ""
-  mapUi.selected = iso
-  const box = mapEl("filterBox")
-  if (box) box.value = iso
+  opts = opts || {}
+  if (opts.fromDot && !iso) return
+  if (!opts.sticky && mapUi.selected && mapUi.selected === iso) {
+    mapUi.selected = ""
+  } else {
+    mapUi.selected = iso
+  }
   if (typeof applyFilter === "function") {
     applyFilter()
     return
@@ -160,25 +163,62 @@ function selectCountry(iso) {
   if (typeof renderMap === "function" && mapEl("mapMini") && mapUi.payload) renderMap(mapEl("mapMini"), mapUi.payload, { interactive: false })
 }
 
-function bindMapSvg(svg, interactive) {
-  if (!svg || svg.dataset.bound === "1") return
-  svg.dataset.bound = "1"
-  svg.addEventListener("pointerdown", (ev) => {
-    if (!interactive || ev.button !== 0) return
+function applyMapSelection(target) {
+  if (!target || !target.closest) return
+  const dot = target.closest(".geo-dot")
+  if (dot) {
+    selectCountry(dot.getAttribute("data-cn"), { fromDot: true, sticky: true })
+    return
+  }
+  const country = target.closest(".country")
+  if (country) selectCountry(country.getAttribute("data-iso"), { sticky: true })
+}
+
+function bindMapPointerWindow() {
+  if (window.__wafMapPtr) return
+  window.__wafMapPtr = 1
+  const finish = (ev) => {
+    if (!mapUi.armed) return
+    const moved = mapUi.moved
+    const hit = mapUi.hit
+    mapUi.armed = false
+    mapUi.drag = null
+    mapUi.hit = null
     mapUi.moved = 0
+    if (moved > 24) return
+    const up = ev && ev.target
+    if (up && up.closest && up.closest("button, input, a, label, .filter-chip, .nav-btn")) return
+    applyMapSelection(hit)
+  }
+  window.addEventListener("pointerup", finish)
+  window.addEventListener("pointercancel", () => {
+    mapUi.armed = false
+    mapUi.drag = null
+    mapUi.hit = null
+    mapUi.moved = 0
+  })
+}
+
+function bindMapSvg(svg, interactive) {
+  bindMapPointerWindow()
+  if (!svg || svg.dataset.bound === "2") return
+  svg.dataset.bound = "2"
+  svg.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return
+    mapUi.moved = 0
+    mapUi.hit = ev.target
+    mapUi.armed = true
+    if (!interactive) return
     mapUi.drag = { x: ev.clientX, y: ev.clientY, tx: mapUi.tx, ty: mapUi.ty }
-    svg.setPointerCapture(ev.pointerId)
   })
   svg.addEventListener("pointermove", (ev) => {
     if (!mapUi.drag) return
-    mapUi.moved += Math.hypot(ev.clientX - mapUi.drag.x, ev.clientY - mapUi.drag.y)
+    mapUi.moved = Math.hypot(ev.clientX - mapUi.drag.x, ev.clientY - mapUi.drag.y)
+    if (mapUi.moved < 12) return
     mapUi.tx = mapUi.drag.tx + (ev.clientX - mapUi.drag.x)
     mapUi.ty = mapUi.drag.ty + (ev.clientY - mapUi.drag.y)
     applyMapTransform(svg)
   })
-  const endDrag = () => { mapUi.drag = null }
-  svg.addEventListener("pointerup", endDrag)
-  svg.addEventListener("pointercancel", endDrag)
   svg.addEventListener("wheel", (ev) => {
     if (!interactive) return
     ev.preventDefault()
@@ -210,6 +250,13 @@ function renderMap(svg, payload, opts) {
   const interactive = !!(opts && opts.interactive)
   const points = (payload && payload.points) || []
   const countries = (payload && payload.countries) || []
+  const selectedIsoVal = (mapUi.selected || "").toUpperCase()
+  const visPoints = selectedIsoVal
+    ? points.filter((p) => String(p.cn || "").toUpperCase() === selectedIsoVal)
+    : points
+  const visCountries = selectedIsoVal
+    ? countries.filter((c) => String(c.cn || "").toUpperCase() === selectedIsoVal)
+    : countries
   const edge = payload && payload.edge
   const max = countries.reduce((n, c) => Math.max(n, Number(c.count) || 0), 0)
   const byIso = {}
@@ -217,15 +264,16 @@ function renderMap(svg, payload, opts) {
   const land = worldList().map((c) => {
     const hit = byIso[c.id] || {}
     const count = Number(hit.count) || 0
-    const sel = mapUi.selected && mapUi.selected === c.id
+    const sel = selectedIsoVal && selectedIsoVal === c.id
+    const dim = selectedIsoVal && !sel ? " dim" : ""
     const d = (c.rings || []).map(ringPath).join(" ")
     const meta = countryMeta(c.id)
-    return `<path class="country${count ? " hot" : ""}${sel ? " selected" : ""}" data-iso="${c.id}" data-name="${escapeHtml(meta.name)}" data-count="${count}" fill="${countryFill(count, max)}" d="${d}"/>`
+    return `<path class="country${count ? " hot" : ""}${sel ? " selected" : ""}${dim}" data-iso="${c.id}" data-name="${escapeHtml(meta.name)}" data-count="${count}" fill="${countryFill(count, max)}" d="${d}"/>`
   }).join("")
   let arcs = ""
   if (mapUi.arcs && edge && Number.isFinite(Number(edge.lat)) && Number.isFinite(Number(edge.lon))) {
     const seen = {}
-    points.slice(0, 18).forEach((p) => {
+    visPoints.slice(0, 18).forEach((p) => {
       const key = (p.cn || p.ip || "") + ":" + Math.round(Number(p.lat)) + "," + Math.round(Number(p.lon))
       if (seen[key]) return
       seen[key] = 1
@@ -233,14 +281,15 @@ function renderMap(svg, payload, opts) {
       arcs += `<path class="map-arc-glow" d="${d}"/><path class="map-arc" d="${d}"/>`
     })
   }
-  const dots = points.map((p) => {
+  const dots = visPoints.map((p) => {
     const lat = Number(p.lat)
     const lon = Number(p.lon)
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return ""
     const [x, y] = project(lat, lon)
     const r = Math.min(7.5, 2.4 + Math.log10(1 + Number(p.capacity || 1)) * 2)
     const cls = p.approx ? "geo-dot approx" : "geo-dot"
-    return `<circle class="${cls}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" data-ip="${escapeHtml(p.ip)}" data-cn="${escapeHtml(p.cn)}" data-city="${escapeHtml(p.city)}" data-as="${escapeHtml(p.as_name)}" data-sc="${escapeHtml(p.scenario)}" data-geo="${p.approx ? "centroid" : "LAPI"}"/>`
+    const attrs = `cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" data-ip="${escapeHtml(p.ip)}" data-cn="${escapeHtml(p.cn)}" data-city="${escapeHtml(p.city)}" data-as="${escapeHtml(p.as_name)}" data-sc="${escapeHtml(p.scenario)}" data-geo="${p.approx ? "centroid" : "LAPI"}"`
+    return `<circle class="${cls}" ${attrs} r="${r.toFixed(1)}" pointer-events="none"/><circle class="geo-dot geo-hit" ${attrs} r="${Math.max(12, r + 5).toFixed(1)}"/>`
   }).join("")
   let edgeMark = ""
   if (edge && Number.isFinite(Number(edge.lat))) {
@@ -248,7 +297,7 @@ function renderMap(svg, payload, opts) {
     edgeMark = `<circle class="edge-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5"/><text class="map-label edge" x="${(x + 8).toFixed(1)}" y="${(y - 8).toFixed(1)}">${escapeHtml(edge.label || t("map.edge", "Edge"))}</text>`
   }
   const labels = interactive
-    ? layoutLabels(countries).map((c) => {
+    ? layoutLabels(visCountries).map((c) => {
       const text = c.city || c.meta.short
       return `<text class="map-label" x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}">${escapeHtml(text)}</text>`
     }).join("")
@@ -284,11 +333,6 @@ function renderMap(svg, payload, opts) {
     showMapTip("", ev)
   }
   svg.onmouseleave = () => showMapTip("", {})
-  svg.onclick = (ev) => {
-    if (mapUi.moved > 8) return
-    const country = ev.target.closest && ev.target.closest(".country")
-    if (country) selectCountry(country.getAttribute("data-iso"))
-  }
   const legend = mapEl("mapLegend")
   if (legend && interactive) {
     legend.innerHTML = `<span>${t("map.legend_none", "No alerts")}</span><i></i><i></i><i></i><i></i><span>${t("map.legend_high", "High")}</span>`

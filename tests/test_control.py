@@ -140,5 +140,25 @@ class ControlTests(unittest.TestCase):
         self.assertNotIn("crs-inband", yaml_text)
 
 
+class SourceOfTests(unittest.TestCase):
+    def test_nested_cn_uppercased(self) -> None:
+        import app as waf_app
+
+        src = waf_app.source_of(
+            {
+                "source": {"ip": "203.0.113.10"},
+                "events": [{"source": {"cn": "br", "ip": "203.0.113.10"}}],
+            }
+        )
+        self.assertEqual(src["cn"], "BR")
+        self.assertEqual(src["ip"], "203.0.113.10")
+
+    def test_top_level_cn_fallback(self) -> None:
+        import app as waf_app
+
+        src = waf_app.source_of({"cn": "us", "source": {"ip": "198.51.100.9"}})
+        self.assertEqual(src["cn"], "US")
+
+
 if __name__ == "__main__":
     unittest.main()
