@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """CrowdSec LAPI/AppSec dashboard aggregates.
 
-Cloudflare-shaped operator views (domain filter, extra filters, traffic,
-security tiles, sampled logs, events, origin probes, AppSec performance).
-Counts come from LAPI alerts and CrowdSec metrics — never Cloudflare HTTP
-analytics. Cache, bytes, visits, 5xx, and PoP data centers stay unavailable
-unless a local source actually provides them.
+Operator views (domain filter, extra filters, traffic, security tiles,
+sampled logs, events, origin probes, AppSec performance). Counts come from
+LAPI alerts and CrowdSec metrics. Cache, bytes, visits and 5xx stay
+unavailable unless a local source actually provides them.
 """
 from __future__ import annotations
 
@@ -17,9 +16,9 @@ from urllib.parse import urlparse
 
 SOURCE = "crowdsec-lapi"
 NOTE = (
-    "LAPI/AppSec events in this window — not Cloudflare request volume. "
+    "LAPI/AppSec events in this window. "
     "HTTP method/UA/JA4H come from CrowdSec alert meta when present. "
-    "Cache, bytes, visits, 5xx, and Cloudflare data centers are not invented."
+    "Cache, bytes, visits and 5xx are listed only when present in local sources."
 )
 GMT3 = timezone(timedelta(hours=-3))
 _BOT_RE = re.compile(r"(googlebot|bingbot|yandexbot|applebot|gptbot|claudebot|bytespider|semrush|ahrefs)", re.I)
@@ -382,7 +381,7 @@ def _detection_tools(engine: dict, rows: list[dict], hub: list[str]) -> list[dic
             "status": "running" if ("http-dos" in hub_l or "ddos" in hub_l) else "limited",
             "running": "http-dos" in hub_l or "ddos" in hub_l,
             "count": 0,
-            "note": "No Cloudflare volumetric DDoS feed. Local HTTP scenarios only.",
+            "note": "No volumetric DDoS feed. Local HTTP scenarios only.",
         },
         {
             "id": "api",
@@ -434,7 +433,7 @@ def _appsec_perf(appsec: dict | None) -> dict:
         "rule_hits": int(mx.get("cs_appsec_rule_hits") or 0),
         "inband_ms": round(1000.0 * in_sum / in_n, 3) if in_n else 0,
         "outband_ms": round(1000.0 * out_sum / out_n, 3) if out_n else 0,
-        "note": "CrowdSec AppSec process lifetime — not 24 h Cloudflare traffic.",
+        "note": "CrowdSec AppSec process lifetime — not 24 h request volume.",
     }
 
 

@@ -782,7 +782,7 @@ function rowKey(r, i) {
 
 function renderDashboard(data) {
   data = data || cache.dashboard || {}
-  if ($("dashNote")) $("dashNote").textContent = data.note || t("dash.note", "LAPI/AppSec events — not Cloudflare HTTP volume.")
+  if ($("dashNote")) $("dashNote").textContent = data.note || t("dash.note", "LAPI/AppSec events in this window.")
   if ($("dashWindow")) $("dashWindow").textContent = data.window_label || t("dash.window", "Last 24 hours · GMT-3")
   fillDomainFilter(data.hosts || [])
   renderDashChips()
