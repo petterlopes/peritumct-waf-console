@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
-  <link rel="icon" href="/waf/logo.svg" type="image/svg+xml">
   <link rel="icon" href="/waf/logo.png" type="image/png">
-  <link rel="stylesheet" href="/waf/app.css?v=3.5">
+  <link rel="stylesheet" href="/waf/app.css?v=3.7">
 </head>
 <body>
   <aside class="rail">
-    <button type="button" class="brand" data-view="credits" aria-label="PERITUM credits">
-      <img class="brand-logo" src="/waf/logo.svg" width="40" height="40" alt="PERITUM">
+    <button type="button" class="brand" data-view="credits" aria-label="PERITUM">
+      <img class="brand-logo" src="/waf/logo.png" width="40" height="48" alt="PERITUM">
       <div>
         <strong>PERITUM</strong>
         <small data-i18n="brand_sub">WAF Console</small>
@@ -71,21 +70,19 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L15 3H9l-.3 2.9a8 8 0 0 0-1.7 1L4.6 6 2.6 9.5 4.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 1.7 1L9 21h6l.3-2.9a8 8 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
         <span data-i18n="nav.engine">Engine</span>
       </button>
-    </nav>
-    <div class="rail-legal" aria-label="Legal">
-      <button type="button" class="nav-btn" data-view="credits">
+      <button class="nav-btn" data-view="credits">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
         <span data-i18n="nav.credits">Credits</span>
       </button>
-      <button type="button" class="nav-btn" data-view="privacy">
+      <button class="nav-btn" data-view="privacy">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4z"/></svg>
         <span data-i18n="nav.privacy">Privacy</span>
       </button>
-      <button type="button" class="nav-btn" data-view="terms">
+      <button class="nav-btn" data-view="terms">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm1 7V3.5L19.5 9H15zM8 13h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>
         <span data-i18n="nav.terms">Terms</span>
       </button>
-    </div>
+    </nav>
     <div class="rail-foot">
       <span class="dot" id="liveDot"></span>
       <span id="liveLabel" data-i18n="live.connecting">Connecting…</span>
@@ -725,7 +722,7 @@
 
     <section id="view-credits" class="view hidden">
       <article class="card legal-doc">
-        <img class="credits-logo" src="/waf/logo.svg" width="96" height="96" alt="PERITUM">
+        <img class="credits-logo" src="/waf/logo.png" width="96" height="117" alt="PERITUM">
         <p class="legal-meta" data-i18n="legal.updated">Effective 17 September 2026</p>
         <h2 data-i18n="credits.title">Credits</h2>
         <p data-i18n="credits.lead">This operator console is designed and maintained by Petter Anderson Lopes for PERITUM / Perícia Computacional. It is not the CrowdSec cloud dashboard.</p>
@@ -786,18 +783,18 @@
       </article>
     </section>
     <footer class="legal-bar">
-      <img src="/waf/logo.svg" width="28" height="28" alt="PERITUM">
-      <button type="button" data-view="credits" data-i18n="nav.credits">Credits</button>
+      <img class="legal-bar-mark" src="/waf/logo.png" width="28" height="34" alt="">
+      <button type="button" class="legal-link" data-view="credits"><span data-i18n="nav.credits">Credits</span></button>
       <span aria-hidden="true">·</span>
-      <button type="button" data-view="privacy" data-i18n="nav.privacy">Privacy</button>
+      <button type="button" class="legal-link" data-view="privacy"><span data-i18n="nav.privacy">Privacy</span></button>
       <span aria-hidden="true">·</span>
-      <button type="button" data-view="terms" data-i18n="nav.terms">Terms</button>
+      <button type="button" class="legal-link" data-view="terms"><span data-i18n="nav.terms">Terms</span></button>
     </footer>
   </main>
   <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
-  <script src="/waf/world.js?v=3.5"></script>
-  <script src="/waf/i18n.js?v=3.5"></script>
-  <script src="/waf/map.js?v=3.5"></script>
-  <script src="/waf/app.js?v=3.5"></script>
+  <script src="/waf/world.js?v=3.7"></script>
+  <script src="/waf/i18n.js?v=3.7"></script>
+  <script src="/waf/map.js?v=3.7"></script>
+  <script src="/waf/app.js?v=3.7"></script>
 </body>
 </html>

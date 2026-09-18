@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9 — 2026-09-17
+
+- Use the official PERITUM shield PNG (transparent background) in the rail, credits, footer, and favicon
+
 ## 1.0.8 — 2026-09-17
 
 - PERITUM shield logo in the rail, favicon, credits page, and footer

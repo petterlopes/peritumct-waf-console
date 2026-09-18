@@ -60,6 +60,7 @@ function showView(name) {
     if (node) node.classList.toggle("hidden", v !== name)
   })
   document.querySelectorAll("[data-view]").forEach((btn) => {
+    if (btn.classList.contains("brand")) return
     btn.classList.toggle("active", btn.dataset.view === name)
   })
   $("viewTitle").textContent = viewTitles()[name]

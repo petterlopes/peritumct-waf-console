@@ -27,15 +27,21 @@ class LegalPagesTest(unittest.TestCase):
             "https://periciacomputacional.com/sobre/",
             "https://www.linkedin.com/in/petter-anderson-lopes/",
             "https://www.instagram.com/peritopetterlopes/",
-            "/waf/logo.svg",
             "/waf/logo.png",
-            'class="rail-legal"',
-            'class="legal-bar"',
             'class="brand-logo"',
+            'src="/waf/logo.png"',
+            'class="legal-bar"',
+            'class="legal-link"',
         ):
             self.assertIn(token, HTML, token)
-        self.assertTrue((ROOT / "static" / "logo.svg").is_file())
-        self.assertTrue((ROOT / "static" / "logo.png").is_file())
+        png = ROOT / "static" / "logo.png"
+        self.assertTrue(png.is_file())
+        self.assertGreater(png.stat().st_size, 2000)
+        self.assertNotIn('id="peritum-shield"', HTML)
+
+    def test_i18n_keeps_visible_label_if_key_missing(self):
+        src = (ROOT / "static" / "i18n.js").read_text(encoding="utf-8")
+        self.assertIn("t(key, el.textContent || key)", src)
 
     def test_locale_keys(self):
         for name in ("en.json", "pt-BR.json"):

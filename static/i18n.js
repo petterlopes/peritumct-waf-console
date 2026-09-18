@@ -24,10 +24,12 @@ function applyI18n() {
   document.documentElement.lang = t("html_lang", I18N.locale)
   document.title = t("title", "WAF Console · CrowdSec")
   document.querySelectorAll("[data-i18n]").forEach((el) => {
-    el.textContent = t(el.getAttribute("data-i18n"))
+    const key = el.getAttribute("data-i18n")
+    el.textContent = t(key, el.textContent || key)
   })
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
-    el.setAttribute("placeholder", t(el.getAttribute("data-i18n-placeholder")))
+    const key = el.getAttribute("data-i18n-placeholder")
+    el.setAttribute("placeholder", t(key, el.getAttribute("placeholder") || key))
   })
   const en = document.getElementById("langEn")
   const pt = document.getElementById("langPt")
