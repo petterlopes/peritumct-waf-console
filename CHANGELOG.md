@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.13 — 2026-09-18
+
+- Dashboard real-time scanner graph (events + unique sources). Does not name the tool. Ordinary browser traffic is not counted.
+
+## 1.0.12 — 2026-09-18
+
+- One OWASP finding per source IP (in-band Hub name wins over CrowdSec OOB “lfi” on /.env)
+- Dashboard secret-file and JA4H insights count unique sources; “Web app exploits” counts Block IPs only
+
+## 1.0.11 — 2026-09-18
+
+- OWASP/ATT&CK tiles count unique source IPs; repeated LAPI rows collapse with an event tally
+- AppSec out-of-band anomaly scores map to T1595 (scanning), not T1190 (exploit), unless Hub labels say otherwise
+- Unclassified CrowdSec names never become findings
+- `vpatch-git-config` is A01 (exposed Git metadata), not A06
+
 ## 1.0.10 — 2026-09-18
 
 - Administration menu with WAF shortcuts and the local Teleport forward to `http://127.0.0.1:18990/waf/`

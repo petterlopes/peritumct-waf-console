@@ -70,6 +70,12 @@ class ClassifyTests(unittest.TestCase):
         hit = correlate.classify("crowdsecurity/vpatch-env-access")
         self.assertEqual(hit["code"], "A01")
 
+    def test_git_config_a01_not_a06(self) -> None:
+        hit = correlate.classify("crowdsecurity/vpatch-git-config")
+        self.assertEqual(hit["code"], "A01")
+        self.assertEqual(hit["attack"], ["T1190"])
+        self.assertNotEqual(hit["code"], "A06")
+
     def test_path_traversal_a01(self) -> None:
         hit = correlate.classify("crowdsecurity/http-path-traversal")
         self.assertEqual(hit["code"], "A01")
@@ -104,6 +110,17 @@ class ClassifyTests(unittest.TestCase):
 
     def test_lfi_oob_medium_not_t1083(self) -> None:
         hit = correlate.classify("anomaly score out-of-band: lfi: 5, anomaly: 5")
+        self.assertEqual(hit["code"], "A01")
+        self.assertEqual(hit["attack"], ["T1595"])
+        self.assertEqual(hit["confidence"], "medium")
+        self.assertNotIn("T1083", hit["attack"])
+        self.assertNotIn("T1190", hit["attack"])
+
+    def test_oob_hub_label_keeps_exploit(self) -> None:
+        hit = correlate.classify(
+            "anomaly score out-of-band: lfi: 5, anomaly: 5",
+            {"labels": ["T1190"]},
+        )
         self.assertEqual(hit["code"], "A01")
         self.assertEqual(hit["attack"], ["T1190"])
         self.assertEqual(hit["confidence"], "medium")
@@ -193,6 +210,56 @@ class CorrelateTests(unittest.TestCase):
         )
         self.assertEqual(len(data["findings"]), 1)
         self.assertEqual(data["findings"][0]["owasp"], "A01")
+        self.assertEqual(data["findings"][0]["attack"], ["T1595"])
+
+    def test_unclassified_generic_dropped(self) -> None:
+        data = correlate.correlate(
+            [{"scenario": "http-generic-ssl", "source": {"ip": "203.0.113.1"}}]
+        )
+        self.assertEqual(data["findings"], [])
+
+    def test_repeat_alerts_collapse_to_unique_ip(self) -> None:
+        alerts = [
+            {
+                "scenario": "anomaly score out-of-band: lfi: 5, anomaly: 5,",
+                "source": {"ip": "203.0.113.10"},
+                "created_at": "2026-01-01T00:00:0%dZ" % idx,
+            }
+            for idx in range(5)
+        ]
+        alerts.extend(
+            [
+                {
+                    "scenario": "crowdsecurity/vpatch-env-access",
+                    "source": {"ip": "203.0.113.10"},
+                    "created_at": "2026-01-01T01:00:00Z",
+                },
+                {
+                    "scenario": "crowdsecurity/vpatch-env-access",
+                    "source": {"ip": "203.0.113.10"},
+                    "created_at": "2026-01-01T01:00:01Z",
+                },
+                {
+                    "scenario": "crowdsecurity/http-generic-sqli",
+                    "source": {"ip": "198.51.100.9"},
+                    "created_at": "2026-01-01T02:00:00Z",
+                },
+            ]
+        )
+        data = correlate.correlate(alerts)
+        self.assertEqual(len(data["findings"]), 2)
+        a01 = next(item for item in data["findings"] if item["owasp"] == "A01")
+        self.assertEqual(a01["events"], 7)
+        self.assertEqual(a01["attack"], ["T1190", "T1595"])
+        self.assertIn("env-access", a01["scenario"])
+        self.assertEqual(a01["confidence"], "high")
+        by_code = {item["code"]: item for item in data["owasp"]}
+        self.assertEqual(by_code["A01"]["count"], 1)
+        self.assertEqual(by_code["A03"]["count"], 1)
+        t1190 = next(item for item in data["mitre"]["techniques"] if item["id"] == "T1190")
+        t1595 = next(item for item in data["mitre"]["techniques"] if item["id"] == "T1595")
+        self.assertEqual(t1190["count"], 2)
+        self.assertEqual(t1595["count"], 1)
 
     def test_findings_cn_and_mitre_mapping(self) -> None:
         data = correlate.correlate(

@@ -542,6 +542,16 @@ table a, .pill a { color: var(--cyan); }
 .leg-blocked { color: var(--orange); }
 .leg-logged { color: var(--cyan); }
 .dash-series { width: 100%; height: 160px; }
+.scanner-chart { height: 180px; }
+.scanner-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.scanner-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--stroke); border-radius: 999px; padding: 4px 10px;
+  font-size: 12px; color: var(--muted); background: #10182a;
+}
+.scanner-chip b { color: var(--text); font-weight: 600; }
+.scanner-chip .dot { width: 8px; height: 8px; border-radius: 99px; display: inline-block; }
+.scanner-chip.zero { opacity: .55; }
 .pager { display: flex; gap: 8px; align-items: center; margin-top: 10px; color: var(--muted); font-size: 12px; }
 .dash-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
 .dash-window { color: var(--muted); font-size: 12px; margin-right: 8px; }

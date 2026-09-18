@@ -494,7 +494,7 @@ function renderOwasp(data) {
     body.innerHTML = findings.map((f) => `<tr>
       <td>${fmtTime(f.when)}</td>
       <td><code>${f.ip || "—"}</code></td>
-      <td>${f.scenario || "—"}</td>
+      <td>${f.scenario || "—"}${Number(f.events) > 1 ? " ×" + f.events : ""}</td>
       <td>${f.owasp || "none"}</td>
       <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
       <td>${f.confidence || "—"}</td>
@@ -628,7 +628,7 @@ function renderMitre(data) {
       <td>${fmtTime(f.when)}</td>
       <td><code>${f.ip || "—"}</code></td>
       <td>${f.cn || "—"}</td>
-      <td>${f.scenario || "—"}</td>
+      <td>${f.scenario || "—"}${Number(f.events) > 1 ? " ×" + f.events : ""}</td>
       <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
       <td>${f.owasp || "none"}</td>
       <td>${f.confidence || "—"}</td>
@@ -717,6 +717,25 @@ function dashLines(svg, series) {
   svg.innerHTML = path(ev, "#8ea0c0") + path(lg, "#3ee0ff") + path(bl, "#ffb020")
 }
 
+function scannerChart(svg, pack) {
+  if (!svg || !pack) return
+  const ev = pack.events || []
+  const src = pack.sources_hourly || []
+  const max = Math.max(1, ...ev, ...src)
+  const w = 720
+  const hgt = 180
+  const n = Math.max(ev.length, 2)
+  const step = w / (n - 1)
+  const path = (arr, color, fill) => {
+    const pts = arr.map((v, i) => (i * step).toFixed(1) + " " + (hgt - 14 - (v / max) * (hgt - 28)).toFixed(1))
+    const line = "<path d=\"M " + pts.join(" L ") + "\" fill=\"none\" stroke=\"" + color + "\" stroke-width=\"2.2\"></path>"
+    if (!fill) return line
+    const area = "M 0 " + (hgt - 8) + " L " + pts.join(" L ") + " L " + ((n - 1) * step).toFixed(1) + " " + (hgt - 8) + " Z"
+    return "<path d=\"" + area + "\" fill=\"" + fill + "\" opacity=\"0.18\"></path>" + line
+  }
+  svg.innerHTML = path(ev, "#3ee0ff", "#3ee0ff") + path(src, "#ffb020", "")
+}
+
 function topCard(title, pack, key) {
   if (!pack || !pack.available) {
     return "<article class=\"top-card\"><h3>" + title + "</h3><p class=\"na\">" + t("dash.na", "Not in LAPI event meta") + "</p></article>"
@@ -777,7 +796,7 @@ function groupedEvents(items) {
 }
 
 function detailRow(r, cols) {
-  const bits = ["method", "ua", "ja4h", "asn", "zones", "data", "http_version", "rule_ids", "scenario"]
+  const bits = ["method", "ua", "ja4h", "asn", "zones", "data", "http_version", "rule_ids", "scenario", "scanner"]
     .filter((k) => r[k])
     .map((k) => "<div><span>" + esc(k) + "</span><code>" + esc(r[k]) + "</code></div>")
     .join("")
@@ -825,6 +844,20 @@ function renderDashboard(data) {
   ).join("")
   if ($("dashTools")) $("dashTools").innerHTML = tools
   dashLines($("dashSeries"), data.series)
+  const scanners = data.scanners || {}
+  scannerChart($("dashScanners"), scanners)
+  if ($("dashScannerPoll")) $("dashScannerPoll").textContent = (scanners.poll_s || 15) + "s"
+  if ($("dashScannerKpis")) {
+    $("dashScannerKpis").innerHTML =
+      "<div class=\"kpi-tile cyan\"><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (scanners.events_total || 0) + "</b></div>" +
+      "<div class=\"kpi-tile orange\"><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (scanners.sources || 0) + "</b></div>"
+  }
+  if ($("dashScannerLegend")) {
+    $("dashScannerLegend").innerHTML =
+      "<span class=\"leg-logged\">" + t("dash.kpi.events", "Events") + "</span>" +
+      "<span class=\"leg-blocked\">" + t("dash.scanners.sources", "Sources") + "</span>" +
+      "<span>" + esc(scanners.tz || "GMT-3") + "</span>"
+  }
   if ($("dashLegend")) {
     $("dashLegend").innerHTML =
       "<span>" + t("dash.kpi.events", "Events") + "</span><span>" + t("dash.kpi.logged", "Logged") + "</span><span>" + t("dash.kpi.blocked", "Blocked") + "</span>" +

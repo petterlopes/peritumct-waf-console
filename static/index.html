@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
   <link rel="icon" href="/waf/logo.png" type="image/png">
-  <link rel="stylesheet" href="/waf/app.css?v=3.9">
+  <link rel="stylesheet" href="/waf/app.css?v=4.2">
 </head>
 <body>
   <aside class="rail">
@@ -167,6 +167,16 @@
       <div id="dashFilterChips" class="filter-chip-row"></div>
 
       <div id="dash-security" class="dash-panel">
+        <article class="card glow-cyan">
+          <div class="card-head">
+            <h2 data-i18n="dash.scanners">Scanner detections</h2>
+            <span class="tag" id="dashScannerPoll">15s</span>
+          </div>
+          <p class="hint" data-i18n="dash.scanners_hint">HTTP AppSec scanner detections in this window. The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. L3/L4 scans are invisible here. Updates every 15s.</p>
+          <div class="kpi-row" id="dashScannerKpis"></div>
+          <svg id="dashScanners" viewBox="0 0 720 180" class="spark dash-series scanner-chart" preserveAspectRatio="none"></svg>
+          <div class="legend-row" id="dashScannerLegend"></div>
+        </article>
         <div class="grid-2">
           <article class="card">
             <div class="card-head"><h2 data-i18n="dash.actions">Security action items</h2><span class="tag" data-i18n="tag.active">Active</span></div>
@@ -812,9 +822,9 @@
     </footer>
   </main>
   <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
-  <script src="/waf/world.js?v=3.9"></script>
-  <script src="/waf/i18n.js?v=3.9"></script>
-  <script src="/waf/map.js?v=3.9"></script>
-  <script src="/waf/app.js?v=3.9"></script>
+  <script src="/waf/world.js?v=4.2"></script>
+  <script src="/waf/i18n.js?v=4.2"></script>
+  <script src="/waf/map.js?v=4.2"></script>
+  <script src="/waf/app.js?v=4.2"></script>
 </body>
 </html>

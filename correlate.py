@@ -221,7 +221,7 @@ _CLASSIFY_RULES: list[tuple[re.Pattern[str], str, list[str], str]] = [
     (re.compile(r"rfi|remote.?file.?inclusion", re.I), "A03", ["T1190"], "high"),
     (re.compile(r"webshell|backdoor", re.I), "A01", ["T1505", "T1505.003"], "high"),
     (re.compile(r"wordpress-uploads-listing", re.I), "A01", ["T1190"], "high"),
-    (re.compile(r"env-access|sensitive.?files|admin.?interface", re.I), "A01", ["T1190"], "high"),
+    (re.compile(r"env-access|sensitive.?files|admin.?interface|git-config", re.I), "A01", ["T1190"], "high"),
     (re.compile(r"wordpress.?login", re.I), "A07", ["T1110"], "high"),
     (re.compile(r"brute(?:[-_ ]?force)?|\bbf\b|[-_/]bf(?:[-_/]|$)|ssh-slow-bf|ssh-bf", re.I), "A07", ["T1110"], "high"),
     (re.compile(r"xmlrpc", re.I), "A05", ["T1595"], "medium"),
@@ -247,6 +247,76 @@ _NONE: dict[str, Any] = {
 _OWASP_BY_CODE = {item["code"]: item for item in OWASP_2021}
 
 _SECRET_KEY_RE = re.compile(r"(token|key|password|secret|authorization|credential)", re.I)
+
+
+def _scenario_family(name: str) -> str:
+    """Collapse repeated AppSec OOB score lines into one incident family."""
+    text = str(name or "").strip()
+    low = text.lower()
+    if "out-of-band" in low or "outofband" in low or re.search(r"\boob\b", low):
+        for token, family in (
+            ("lfi", "appsec-oob-lfi"),
+            ("rfi", "appsec-oob-rfi"),
+            ("xss", "appsec-oob-xss"),
+            ("sqli", "appsec-oob-sqli"),
+            ("ssrf", "appsec-oob-ssrf"),
+            ("rce", "appsec-oob-rce"),
+        ):
+            if token in low:
+                return family
+        return "appsec-oob"
+    return text
+
+
+def _collapse_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per source IP + OWASP; merge ATT&CK ids and event tallies."""
+    merged: dict[tuple, dict[str, Any]] = {}
+    order: list[tuple] = []
+    rank = {"high": 3, "medium": 2, "low": 1, "none": 0}
+    for item in findings:
+        key = (str(item.get("ip") or ""), str(item.get("owasp") or ""))
+        if key not in merged:
+            row = dict(item)
+            row["events"] = int(item.get("events") or 1)
+            row["attack"] = [tid for tid in ATTACK if tid in set(item.get("attack") or [])]
+            merged[key] = row
+            order.append(key)
+            continue
+        row = merged[key]
+        row["events"] = int(row.get("events") or 1) + int(item.get("events") or 1)
+        seen = set(row.get("attack") or []) | set(item.get("attack") or [])
+        row["attack"] = [tid for tid in ATTACK if tid in seen]
+        incoming = str(item.get("when") or "")
+        if incoming > str(row.get("when") or ""):
+            row["when"] = incoming
+        if rank.get(str(item.get("confidence") or ""), 0) > rank.get(str(row.get("confidence") or ""), 0):
+            row["confidence"] = item.get("confidence")
+        incoming_name = str(item.get("scenario") or "")
+        current_name = str(row.get("scenario") or "")
+        # Prefer the in-band Hub name over CrowdSec OOB "lfi" on /.env probes.
+        if _OOB_RE.search(current_name) and incoming_name and not _OOB_RE.search(incoming_name):
+            row["scenario"] = incoming_name
+    return [merged[key] for key in order]
+
+
+def _recount(catalog: dict[str, dict[str, Any]], findings: list[dict[str, Any]]) -> dict[str, int]:
+    """OWASP/ATT&CK tiles count unique source IPs, not repeated LAPI rows."""
+    for item in catalog.values():
+        item["count"] = 0
+    owasp_ips: dict[str, set[str]] = {code: set() for code in catalog}
+    attack_ips: dict[str, set[str]] = {tid: set() for tid in ATTACK}
+    for finding in findings:
+        ip = str(finding.get("ip") or "").strip()
+        token = ip or "finding:%s|%s" % (finding.get("scenario"), finding.get("when"))
+        code = str(finding.get("owasp") or "")
+        if code in owasp_ips:
+            owasp_ips[code].add(token)
+        for tid in finding.get("attack") or []:
+            if tid in attack_ips:
+                attack_ips[tid].add(token)
+    for code, seen in owasp_ips.items():
+        catalog[code]["count"] = len(seen)
+    return {tid: len(seen) for tid, seen in attack_ips.items()}
 
 
 def _owasp_meta(code: str) -> dict[str, str]:
@@ -341,8 +411,13 @@ def classify(name: str | None, alert: dict | None = None) -> dict[str, Any]:
         hit["attack"] = hub
         if hit["confidence"] == "none":
             hit["confidence"] = "medium"
-    if hit["code"] != "none" and _OOB_RE.search(text) and hit["confidence"] == "high":
-        hit["confidence"] = "medium"
+    if hit["code"] != "none" and _OOB_RE.search(text):
+        if hit["confidence"] == "high":
+            hit["confidence"] = "medium"
+        # Log-only AppSec matches are detections, not confirmed exploits.
+        # Hub MITRE labels already applied above still win.
+        if not hub and hit.get("attack"):
+            hit["attack"] = ["T1595"]
     return hit
 
 
@@ -503,7 +578,6 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
         if hit["code"] in catalog:
             catalog[hit["code"]]["hub_rules"].append(str(rule))
     findings: list[dict[str, Any]] = []
-    attack_counts: dict[str, int] = {tid: 0 for tid in ATTACK}
     for alert in alerts or []:
         if not isinstance(alert, dict):
             continue
@@ -512,8 +586,7 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
             continue
         hit = classify(name, alert)
         if hit["code"] == "none" and not hit.get("attack"):
-            if _OOB_RE.search(name) or "anomaly score" in name.lower():
-                continue
+            continue
         cn, city = _alert_geo(alert)
         finding = {
             "when": alert.get("created_at") or alert.get("start_at") or "",
@@ -526,11 +599,8 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
             "confidence": hit.get("confidence") or "none",
         }
         findings.append(finding)
-        if hit["code"] in catalog:
-            catalog[hit["code"]]["count"] += 1
-        for tid in finding["attack"]:
-            if tid in attack_counts:
-                attack_counts[tid] += 1
+    findings = _collapse_findings(findings)
+    attack_counts = _recount(catalog, findings)
     attack_list = [
         {
             "id": tid,

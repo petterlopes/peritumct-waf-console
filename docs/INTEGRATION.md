@@ -211,6 +211,12 @@ updates, OOB scores without a technique) is dropped. MITRE ATT&CK enrichment
 uses a **local** subset (T1190, T1595, T1110, T1059, T1083, T1046 Discovery,
 T1189, T1505, T1090, T1562, T1600, T1068, T1505.003) — no GitHub download.
 Internet scanners map to T1595 only; SQLi/XSS/SSRF map to T1190.
+AppSec **out-of-band** anomaly scores (log-only CRS matches) also map to T1595,
+not T1190, unless the Hub alert already carries a catalog MITRE id. Exposed
+`.git/config` (`vpatch-git-config`) is A01, not A06. Dashboard counts are
+**unique source IPs** after collapsing to one row per IP + OWASP (in-band Hub
+names win over CrowdSec OOB “lfi” labels on `/.env` probes; the row keeps an
+`events` tally and merged ATT&CK ids).
 
 OpenCTI-inspired connectors (`INTERNAL_ENRICHMENT`, `EXTERNAL_IMPORT`, `STREAM`,
 `INTERNAL_EXPORT_FILE`) are local only. Operators download:

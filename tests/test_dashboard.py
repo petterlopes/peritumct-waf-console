@@ -91,7 +91,52 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(data["crs_inband"])
         tools = {t["id"]: t for t in data["detection_tools"]}
         self.assertFalse(tools["bot"]["running"])
-        self.assertTrue(any(i["id"] == "env-probe" for i in data["action_items"]))
+        self.assertEqual(tools["exploits"]["count"], 0)
+        env = next(item for item in data["action_items"] if item["id"] == "env-probe")
+        self.assertIn("1 source", env["title"])
+        self.assertNotIn("in window", env["title"])
+        self.assertIn("Active scanning", env["tags"])
+        scanners = data.get("scanners") or {}
+        self.assertEqual(scanners.get("events_total"), 1)
+        self.assertEqual(scanners.get("sources"), 1)
+        self.assertTrue(data["logs"][0].get("scanner"))
+        self.assertNotIn("tools", scanners)
+
+
+class ScannerDetectTests(unittest.TestCase):
+    def test_chrome_ordinary_path_is_not_scanner(self) -> None:
+        self.assertFalse(
+            dashboard.is_scanner_event(
+                "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0.0.0 Safari/537.36",
+                "http-generic-ssl",
+                "/",
+            )
+        )
+
+    def test_chrome_env_probe_is_scanner_without_naming_tool(self) -> None:
+        self.assertTrue(
+            dashboard.is_scanner_event(
+                "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0.0.0 Safari/537.36",
+                "crowdsecurity/vpatch-env-access",
+                "/.env",
+            )
+        )
+
+    def test_named_ua_counts_as_scanner_anonymously(self) -> None:
+        self.assertTrue(
+            dashboard.is_scanner_event(
+                "Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)",
+                "",
+                "/",
+            )
+        )
+        self.assertTrue(dashboard.is_scanner_event("ZAP/2.14.0", "", "/"))
+        self.assertTrue(dashboard.is_scanner_event("hping3 packet", "", "/"))
+
+    def test_lookalike_uas_are_not_scanners(self) -> None:
+        self.assertFalse(dashboard.is_scanner_event("Zapier-Client/1.0", "", "/"))
+        self.assertFalse(dashboard.is_scanner_event("NucleicClient/1.0", "", "/"))
+        self.assertFalse(dashboard.is_scanner_event("Mozilla/5.0", "", "/"))
 
     def test_ip_filter_and_ja4h_tiles(self) -> None:
         now = datetime(2026, 9, 17, 22, 0, tzinfo=timezone.utc)

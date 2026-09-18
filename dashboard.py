@@ -264,19 +264,71 @@ def classify_ua(ua: str) -> tuple[str, str, str]:
     return browser, os_name, device
 
 
+# Scanner detection is anonymous: one series, no tool names.
+# Chrome/Firefox browsing is not a scanner. Secret-file probes and Hub scan
+# scenarios are. Known tool UAs count as scanner activity without identifying them.
+_SCANNER_UA_RE = re.compile(
+    r"(?i)(?<![a-z])nmap(?![a-z])"
+    r"|(?<![a-z])hping3?(?![a-z])"
+    r"|(?<![a-z])masscan(?![a-z])"
+    r"|acunetix"
+    r"|owasp[\s-]?zap|(?<![a-z])zaproxy(?![a-z])|(?<![a-z])zap/\d"
+    r"|(?<![a-z])nessus(?![a-z])"
+    r"|openvas|(?<![a-z])greenbone(?![a-z])"
+    r"|(?<![a-z])nikto(?![a-z])"
+    r"|(?<![a-z])sqlmap(?![a-z])"
+    r"|(?<![a-z])nuclei(?![a-z])"
+    r"|(?<![a-z])wpscan(?![a-z])"
+    r"|(?<![a-z])burp(?:suite)?(?![a-z])"
+    r"|(?<![a-z])gobuster(?![a-z])"
+    r"|(?<![a-z])ffuf(?![a-z])"
+    r"|dirbuster"
+    r"|(?<![a-z])jscrawler(?![a-z])"
+)
+_SCANNER_SCENARIO_RE = re.compile(
+    r"(?i)probing|scanner|http-crawl|http-scan|bad-user-agent|open-proxy"
+    r"|env-access|git-config|uploads-listing"
+)
+_SECRET_SCAN_PATH = re.compile(
+    r"(?i)(?:^|/)(?:\.env|\.git(?:/|$)|\.aws(?:/|$)|\.docker(?:/|$))"
+)
+_SCANNER_NOTE = (
+    "HTTP AppSec/LAPI scanner detections in this window. "
+    "The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. "
+    "L3/L4 scans (hping3, nmap SYN) are invisible here. Updates every 15s."
+)
+
+
+def is_scanner_event(ua: str = "", scenario: str = "", path: str = "") -> bool:
+    """True for HTTP scanner/recon activity. Never names the tool."""
+    if _SCANNER_UA_RE.search(ua or ""):
+        return True
+    if _SCANNER_SCENARIO_RE.search(scenario or ""):
+        return True
+    if _SECRET_SCAN_PATH.search(path or ""):
+        return True
+    return False
+
+
+def _hour_bucket(dt: datetime | None, now: datetime) -> int | None:
+    if not dt:
+        return None
+    local = now.astimezone(GMT3)
+    hours = int((local - dt.astimezone(GMT3)).total_seconds() // 3600)
+    if hours < 0 or hours > 23:
+        return None
+    return 23 - hours
+
+
 def _hour_series(rows: list[dict], now: datetime) -> dict:
     local = now.astimezone(GMT3)
     events = [0] * 24
     blocked = [0] * 24
     logged = [0] * 24
     for row in rows:
-        dt = row.get("_dt")
-        if not dt:
+        idx = _hour_bucket(row.get("_dt"), now)
+        if idx is None:
             continue
-        hours = int((local - dt.astimezone(GMT3)).total_seconds() // 3600)
-        if hours < 0 or hours > 23:
-            continue
-        idx = 23 - hours
         events[idx] += 1
         if row["action"] == "Block":
             blocked[idx] += 1
@@ -289,8 +341,41 @@ def _hour_series(rows: list[dict], now: datetime) -> dict:
     return {"labels": labels, "events": events, "blocked": blocked, "logged": logged, "tz": "GMT-3"}
 
 
+def _scanner_pack(rows: list[dict], now: datetime, labels: list[str]) -> dict[str, Any]:
+    events = [0] * 24
+    hour_ips: list[set[str]] = [set() for _ in range(24)]
+    all_ips: set[str] = set()
+    total = 0
+    for row in rows:
+        if not is_scanner_event(row.get("ua") or "", row.get("scenario") or "", row.get("path") or ""):
+            row["scanner"] = False
+            continue
+        row["scanner"] = True
+        total += 1
+        ip = str(row.get("ip") or "")
+        if ip:
+            all_ips.add(ip)
+        idx = _hour_bucket(row.get("_dt"), now)
+        if idx is None:
+            continue
+        events[idx] += 1
+        if ip:
+            hour_ips[idx].add(ip)
+    return {
+        "ok": True,
+        "source": SOURCE,
+        "note": _SCANNER_NOTE,
+        "poll_s": 15,
+        "tz": "GMT-3",
+        "labels": labels,
+        "events": events,
+        "sources_hourly": [len(slot) for slot in hour_ips],
+        "events_total": total,
+        "sources": len(all_ips),
+    }
+
+
 def _action_items(engine: dict, rows: list[dict], origin: list[dict]) -> list[dict]:
-    env_hits = sum(1 for r in rows if "/.env" in (r.get("path") or "") or "/.aws/" in (r.get("path") or ""))
     items = [
         {
             "id": "bot-off",
@@ -318,12 +403,19 @@ def _action_items(engine: dict, rows: list[dict], origin: list[dict]) -> list[di
             "kind": "insight",
             "view": "engine",
         })
-    if env_hits:
+    env_ips = {
+        str(r.get("ip") or "")
+        for r in rows
+        if "/.env" in (r.get("path") or "") or "/.aws/" in (r.get("path") or "")
+    }
+    env_ips.discard("")
+    if env_ips:
+        n = len(env_ips)
         items.append({
             "id": "env-probe",
             "severity": "Medium",
-            "title": f"Secret-file probes (/.env, /.aws) — {env_hits} in window",
-            "tags": ["Security insight", "Web app exploits"],
+            "title": "Secret-file probes (/.env, /.aws) — %s source%s" % (n, "" if n == 1 else "s"),
+            "tags": ["Security insight", "Active scanning"],
             "kind": "insight",
             "view": "alerts",
         })
@@ -340,11 +432,14 @@ def _action_items(engine: dict, rows: list[dict], origin: list[dict]) -> list[di
     ja4 = Counter(r.get("ja4h") for r in rows if r.get("ja4h"))
     if ja4:
         label, count = ja4.most_common(1)[0]
+        sources = len({str(r.get("ip") or "") for r in rows if r.get("ja4h") == label and r.get("ip")})
         if count >= 8 and count >= max(4, int(0.4 * len(rows))):
             items.append({
                 "id": "ja4-repeat",
                 "severity": "Medium",
-                "title": f"Repeated JA4H fingerprint ({count} events)",
+                "title": "Repeated JA4H fingerprint (%s events, %s source%s)" % (
+                    count, sources, "" if sources == 1 else "s"
+                ),
                 "tags": ["Security insight", "Client fingerprint"],
                 "kind": "insight",
                 "view": "alerts",
@@ -357,7 +452,9 @@ def _detection_tools(engine: dict, rows: list[dict], hub: list[str]) -> list[dic
     hub_l = " ".join(hub).lower()
     appsec = bool(engine.get("appsec_listen"))
     oob = bool(engine.get("oob_log_only"))
-    exploits = sum(1 for r in rows if r.get("action") in {"Block", "Log", "Alert"})
+    blocked_ips = {str(r.get("ip") or "") for r in rows if r.get("action") == "Block"}
+    blocked_ips.discard("")
+    exploits = len(blocked_ips)
     return [
         {
             "id": "bot",
@@ -373,7 +470,7 @@ def _detection_tools(engine: dict, rows: list[dict], hub: list[str]) -> list[dic
             "status": "running" if appsec else "down",
             "running": appsec,
             "count": exploits,
-            "note": "AppSec + vpatch. CRS in-band is forbidden in this UI.",
+            "note": "Unique source IPs with a Block decision. OOB log-only matches are not counted as exploits.",
         },
         {
             "id": "ddos",
@@ -494,6 +591,7 @@ def build(
             "data": http.get("data") or "",
             "rule_ids": http.get("rule_ids") or "",
             "scenario": alert.get("scenario") or "",
+            "scanner": "",
             "_dt": dt,
         }
         if not _match_filters(row, filters):
@@ -550,6 +648,7 @@ def build(
     origin_ok = sum(1 for p in origin if p.get("status") == 200)
     origin_n = len(origin)
     series = _hour_series(rows, now)
+    scanners = _scanner_pack(rows, now, series.get("labels") or [])
     logs = [{k: v for k, v in row.items() if not k.startswith("_")} for row in rows[:100]]
     edge_pack = None
     if isinstance(edge, dict) and edge.get("label"):
@@ -586,6 +685,7 @@ def build(
             "alerted": actions.get("Alert", 0),
         },
         "series": series,
+        "scanners": scanners,
         "top": {
             "ips": _pack(ips, True),
             "paths": _pack(paths, True),
