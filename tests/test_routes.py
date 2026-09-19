@@ -134,6 +134,38 @@ class RoutesTests(unittest.TestCase):
                 }
             )
 
+    def test_empty_store_yaml_has_no_http_tcp_maps(self) -> None:
+        text = self.routes.render_yaml({"routes": [], "tunnels": []})
+        self.assertNotIn("\nhttp:", "\n" + text)
+        self.assertNotIn("\ntcp:", "\n" + text)
+        self.assertNotIn("routers: {}", text)
+        self.assertNotIn("services: {}", text)
+
+    def test_populated_yaml_still_has_no_empty_maps(self) -> None:
+        text = self.routes.render_yaml(
+            {
+                "routes": [
+                    {
+                        "name": "lab-web",
+                        "kind": "http",
+                        "enabled": True,
+                        "host": "lab.example.com",
+                        "path_prefix": "/app",
+                        "service_url": "http://127.0.0.1:3000",
+                        "chain": "domain-security-chain",
+                        "priority": 90,
+                        "tls": True,
+                    }
+                ],
+                "tunnels": [],
+            }
+        )
+        self.assertIn("http:", text)
+        self.assertIn("Host(`lab.example.com`)", text)
+        self.assertNotIn("routers: {}", text)
+        self.assertNotIn("services: {}", text)
+        self.assertNotIn("\ntcp:", "\n" + text)
+
     def test_admin_payload_lists_actions(self) -> None:
         data = self.routes.admin_payload()
         views = [a["view"] for a in data["actions"]]

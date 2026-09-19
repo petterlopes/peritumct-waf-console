@@ -340,7 +340,10 @@ def render_yaml(store: dict | None = None) -> str:
             lines.append("          - address: %s" % _yaml_quote(item["target"]))
     if not http_items and not tcp_items:
         lines.append("# No operator HTTP/TCP items. This file must not define empty http/tcp maps.")
-    return "\n".join(lines) + "\n"
+    yaml_text = "\n".join(lines) + "\n"
+    if "routers: {}" in yaml_text or "services: {}" in yaml_text:
+        raise RuntimeError("refusing empty Traefik http/tcp maps (sidecar would clobber HostSNI)")
+    return yaml_text
 
 
 def apply_fragment(store: dict | None = None) -> dict:
