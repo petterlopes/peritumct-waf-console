@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <title>WAF Console · CrowdSec</title>
   <link rel="icon" href="/waf/logo.png" type="image/png">
-  <link rel="stylesheet" href="/waf/app.css?v=4.4">
+  <link rel="stylesheet" href="/waf/app.css?v=4.8">
 </head>
 <body>
   <aside class="rail">
@@ -173,14 +173,18 @@
             <span class="tag" id="dashScannerPoll">15s</span>
           </div>
           <p class="hint" id="dashScannerHint" data-i18n="dash.scanners_hint">HTTP AppSec scanner detections in this window. Hover or click an hour for time, quantity and action split. The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. L3/L4 scans are invisible here. Updates every 15s.</p>
-          <div class="kpi-row scanner-kpis" id="dashScannerKpis"></div>
-          <div class="scanner-chart-wrap" id="dashScannerWrap">
-            <svg id="dashScanners" viewBox="0 0 720 240" class="spark dash-series scanner-chart" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="dashScannerHint"></svg>
-            <div id="dashScannerTip" class="scanner-tip hidden" role="status"></div>
+          <div class="scanner-stage">
+            <div class="kpi-row scanner-kpis" id="dashScannerKpis"></div>
+            <div class="scanner-chart-wrap" id="dashScannerWrap">
+              <svg id="dashScanners" viewBox="0 0 720 400" class="scanner-chart" preserveAspectRatio="none" role="img" aria-labelledby="dashScannerHint"></svg>
+              <div id="dashScannerTip" class="scanner-tip hidden" role="status"></div>
+            </div>
+            <div class="scanner-align">
+              <div class="legend-row scanner-legend" id="dashScannerLegend"></div>
+              <p class="scanner-focus" id="dashScannerFocus"></p>
+              <div class="scanner-hours" id="dashScannerHours" aria-label="Hourly scanner detections"></div>
+            </div>
           </div>
-          <div class="legend-row" id="dashScannerLegend"></div>
-          <p class="scanner-focus" id="dashScannerFocus"></p>
-          <div class="scanner-hours" id="dashScannerHours" aria-label="Hourly scanner detections"></div>
         </article>
         <div class="grid-2">
           <article class="card">
@@ -827,9 +831,9 @@
     </footer>
   </main>
   <div id="mapTip" class="map-tip hidden" role="tooltip"></div>
-  <script src="/waf/world.js?v=4.4"></script>
-  <script src="/waf/i18n.js?v=4.4"></script>
-  <script src="/waf/map.js?v=4.4"></script>
-  <script src="/waf/app.js?v=4.4"></script>
+  <script src="/waf/world.js?v=4.8"></script>
+  <script src="/waf/i18n.js?v=4.8"></script>
+  <script src="/waf/map.js?v=4.8"></script>
+  <script src="/waf/app.js?v=4.8"></script>
 </body>
 </html>

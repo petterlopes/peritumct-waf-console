@@ -723,55 +723,54 @@ function scannerChart(svg, pack) {
   const hours = scannerHours(pack)
   const n = Math.max(hours.length, 2)
   const evMax = Math.max(1, ...hours.map((h) => h.events || 0))
-  const srcMax = Math.max(1, ...hours.map((h) => h.sources || 0))
-  const W = 720, H = 240, L = 48, R = 48, T = 20, B = 42
+  const W = 720, H = 400, L = 48, R = 48, T = 40, B = 16
   const pw = W - L - R, ph = H - T - B
-  const step = pw / (n - 1)
+  const step = pw / n
   const yEv = (v) => T + ph - (v / evMax) * ph
-  const ySrc = (v) => T + ph - (v / srcMax) * ph
-  const xAt = (i) => L + i * step
-  const ptsEv = hours.map((h, i) => xAt(i).toFixed(1) + " " + yEv(h.events || 0).toFixed(1))
-  const ptsSrc = hours.map((h, i) => xAt(i).toFixed(1) + " " + ySrc(h.sources || 0).toFixed(1))
-  const area = "M " + L + " " + (T + ph) + " L " + ptsEv.join(" L ") + " L " + xAt(n - 1).toFixed(1) + " " + (T + ph) + " Z"
+  const xAt = (i) => L + step * (i + 0.5)
   let grid = ""
-  for (let i = 0; i < n; i += 3) {
+  ;[0, 6, 12, 18, 23].forEach((i) => {
+    if (i >= n) return
     const x = xAt(i).toFixed(1)
     grid += "<line x1=\"" + x + "\" y1=\"" + T + "\" x2=\"" + x + "\" y2=\"" + (T + ph) + "\" class=\"scanner-grid\"></line>"
-    grid += "<text x=\"" + x + "\" y=\"" + (H - 14) + "\" class=\"scanner-axis scanner-axis-x\">" + esc(hours[i].label || "") + "</text>"
-  }
+  })
   ;[0, 0.5, 1].forEach((f) => {
     const y = (T + ph - f * ph).toFixed(1)
     grid += "<line x1=\"" + L + "\" y1=\"" + y + "\" x2=\"" + (W - R) + "\" y2=\"" + y + "\" class=\"scanner-grid\"></line>"
-    grid += "<text x=\"" + (L - 6) + "\" y=\"" + (Number(y) + 3) + "\" class=\"scanner-axis scanner-axis-y\">" + Math.round(evMax * f) + "</text>"
-    grid += "<text x=\"" + (W - R + 6) + "\" y=\"" + (Number(y) + 3) + "\" class=\"scanner-axis scanner-axis-yr\">" + Math.round(srcMax * f) + "</text>"
+    grid += "<text x=\"" + (L - 8) + "\" y=\"" + (Number(y) + 4) + "\" class=\"scanner-axis scanner-axis-y\">" + Math.round(evMax * f) + "</text>"
   })
   let peakIdx = (pack.stats && pack.stats.peak_idx != null) ? Number(pack.stats.peak_idx) : 0
   if (!Number.isFinite(peakIdx) || peakIdx < 0 || peakIdx >= n) peakIdx = 0
   hours.forEach((h, i) => { if ((h.events || 0) >= (hours[peakIdx].events || 0)) peakIdx = i })
-  const peak = hours[peakIdx] || hours[0]
-  const px = xAt(peakIdx)
-  const py = yEv(peak.events || 0)
   const pin = (scannerPin != null && scannerPin >= 0 && scannerPin < n) ? scannerPin : null
+  const bw = Math.max(10, step * 0.8)
+  let bars = ""
+  let dots = ""
+  let labels = ""
   let hits = ""
-  hours.forEach((_, i) => {
-    const x0 = i === 0 ? L : L + (i - 0.5) * step
-    const x1 = i === n - 1 ? (W - R) : L + (i + 0.5) * step
-    hits += "<rect class=\"scanner-hit\" data-i=\"" + i + "\" x=\"" + x0.toFixed(1) + "\" y=\"" + T + "\" width=\"" + Math.max(4, x1 - x0).toFixed(1) + "\" height=\"" + ph + "\"></rect>"
+  hours.forEach((h, i) => {
+    const ev = h.events || 0
+    const src = h.sources || 0
+    const x = xAt(i)
+    const y = yEv(ev)
+    const ht = Math.max(ev ? 2 : 0, (T + ph) - y)
+    const xBar = (x - bw / 2).toFixed(1)
+    if (ev) {
+      bars += "<rect class=\"scanner-bar" + (pin === i ? " on" : "") + "\" x=\"" + xBar + "\" y=\"" + y.toFixed(1) + "\" width=\"" + bw.toFixed(1) + "\" height=\"" + ht.toFixed(1) + "\"></rect>"
+    }
+    if (src) {
+      dots += "<circle class=\"scanner-src-dot\" cx=\"" + x.toFixed(1) + "\" cy=\"" + (ev ? y : (T + ph)).toFixed(1) + "\" r=\"4.2\"></circle>"
+    }
+    if (ev && (i === peakIdx || i === pin || ev >= evMax * 0.18)) {
+      labels += "<text class=\"scanner-bar-lbl\" x=\"" + x.toFixed(1) + "\" y=\"" + Math.max(y - 8, 16).toFixed(1) + "\">" + ev + "</text>"
+    }
+    hits += "<rect class=\"scanner-hit\" data-i=\"" + i + "\" x=\"" + (L + i * step).toFixed(1) + "\" y=\"" + T + "\" width=\"" + step.toFixed(1) + "\" height=\"" + ph + "\"></rect>"
   })
   const pinLine = pin == null ? "" :
     "<line class=\"scanner-pin\" x1=\"" + xAt(pin).toFixed(1) + "\" y1=\"" + T + "\" x2=\"" + xAt(pin).toFixed(1) + "\" y2=\"" + (T + ph) + "\"></line>"
-  const peakMark = (peak.events > 0)
-    ? "<circle class=\"scanner-peak\" cx=\"" + px.toFixed(1) + "\" cy=\"" + py.toFixed(1) + "\" r=\"4.5\"></circle>" +
-      "<text class=\"scanner-peak-lbl\" x=\"" + Math.min(px + 8, W - R - 90).toFixed(1) + "\" y=\"" + Math.max(py - 8, T + 12).toFixed(1) + "\">" +
-      esc(t("dash.scanners.peak", "Peak")) + " " + peak.events + " · " + esc(peak.label || "") + "</text>"
-    : ""
-  svg.setAttribute("viewBox", "0 0 720 240")
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet")
-  svg.innerHTML = grid +
-    "<path d=\"" + area + "\" class=\"scanner-area\"></path>" +
-    "<path d=\"M " + ptsEv.join(" L ") + "\" class=\"scanner-line-ev\"></path>" +
-    "<path d=\"M " + ptsSrc.join(" L ") + "\" class=\"scanner-line-src\"></path>" +
-    pinLine + peakMark + hits
+  svg.setAttribute("viewBox", "0 0 720 400")
+  svg.setAttribute("preserveAspectRatio", "none")
+  svg.innerHTML = grid + bars + dots + labels + pinLine + hits
   svg._scannerPack = pack
   svg._scannerHours = hours
   bindScannerChart(svg)
@@ -866,11 +865,14 @@ function renderScannerHours(pack) {
   const hours = scannerHours(pack || {})
   const max = Math.max(1, ...hours.map((h) => h.events || 0))
   el.innerHTML = hours.map((h, i) => {
-    const pct = Math.round(100 * (h.events || 0) / max)
+    const ev = h.events || 0
+    const raw = Math.round(100 * ev / max)
+    const pct = ev ? Math.max(raw, 18) : 0
     const on = scannerPin === i ? " active" : ""
-    const title = (h.label || "") + " · " + t("dash.kpi.events", "Events") + " " + (h.events || 0) +
+    const lit = ev ? " lit" : ""
+    const title = (h.label || "") + " · " + t("dash.kpi.events", "Events") + " " + ev +
       " · " + t("dash.scanners.sources", "Sources") + " " + (h.sources || 0)
-    return "<button type=\"button\" class=\"scanner-hour" + on + "\" data-i=\"" + i + "\" title=\"" + esc(title) + "\">" +
+    return "<button type=\"button\" class=\"scanner-hour" + on + lit + "\" data-i=\"" + i + "\" title=\"" + esc(title) + "\">" +
       "<span class=\"bar\"><i style=\"height:" + pct + "%\"></i></span>" +
       "<span class=\"hh\">" + esc(String(h.label || "").slice(0, 2)) + "</span></button>"
   }).join("")
@@ -1022,21 +1024,25 @@ function renderDashboard(data) {
   const last = scanners.last_hour || {}
   if ($("dashScannerKpis")) {
     $("dashScannerKpis").innerHTML =
-      "<div class=\"kpi-tile cyan\"><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (scanners.events_total || 0) + "</b></div>" +
-      "<div class=\"kpi-tile orange\"><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (scanners.sources || 0) + "</b></div>" +
+      "<div class=\"kpi-tile cyan\"><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (scanners.events_total || 0) + "</b><small>24h</small></div>" +
+      "<div class=\"kpi-tile orange\"><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (scanners.sources || 0) + "</b><small>24h</small></div>" +
       "<div class=\"kpi-tile\"><span>" + t("dash.scanners.last", "Last hour") + "</span><b>" + (st.last_hour_events ?? last.events ?? 0) + "</b><small>" + esc(last.label || "") + "</small></div>" +
       "<div class=\"kpi-tile\"><span>" + t("dash.scanners.peak", "Peak") + "</span><b>" + (st.peak_events ?? 0) + "</b><small>" + esc(st.peak_label || "") + "</small></div>" +
-      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.mean", "Mean / hour") + "</span><b>" + fmtScan(st.mean_events) + "</b></div>" +
-      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.active", "Active hours") + "</span><b>" + (st.hours_active ?? 0) + "<i>/24</i></b></div>"
+      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.mean", "Mean / hour") + "</span><b>" + fmtScan(st.mean_events) + "</b><small>24h</small></div>" +
+      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.active", "Active hours") + "</span><b>" + (st.hours_active ?? 0) + "</b><small>/24</small></div>"
   }
   if ($("dashScannerLegend")) {
     $("dashScannerLegend").innerHTML =
-      "<span class=\"leg-logged\">" + t("dash.kpi.events", "Events") + "</span>" +
-      "<span class=\"leg-blocked\">" + t("dash.scanners.sources", "Sources") + "</span>" +
-      "<span>" + t("dash.scanners.per_source", "Events / source") + " " + fmtScan(st.events_per_source) + "</span>" +
-      "<span>" + t("dash.kpi.blocked", "Blocked") + " " + (scanners.blocked_total || 0) + "</span>" +
-      "<span>" + t("dash.kpi.logged", "Logged (OOB)") + " " + (scanners.logged_total || 0) + "</span>" +
-      "<span>" + esc(scanners.tz || "GMT-3") + "</span>"
+      "<span class=\"scanner-leg-l\">" +
+        "<span class=\"leg-logged\">" + t("dash.kpi.events", "Events") + "</span>" +
+        "<span class=\"leg-blocked\">" + t("dash.scanners.sources", "Sources") + "</span>" +
+      "</span>" +
+      "<span class=\"scanner-leg-r\">" +
+        "<span>" + t("dash.scanners.per_source", "Events / source") + " " + fmtScan(st.events_per_source) + "</span>" +
+        "<span>" + t("dash.kpi.blocked", "Blocked") + " " + (scanners.blocked_total || 0) + "</span>" +
+        "<span>" + t("dash.kpi.logged", "Logged (OOB)") + " " + (scanners.logged_total || 0) + "</span>" +
+        "<span>" + esc(scanners.tz || "GMT-3") + "</span>" +
+      "</span>"
   }
   if ($("dashLegend")) {
     $("dashLegend").innerHTML =

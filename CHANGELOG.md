@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.15 — 2026-09-18
+
+- Scanner card layout: large single-scale bar chart, equal KPI tiles, plot and 24h strip share the same inset. Sources stay orange dots on the event axis (no dual Y). Still does not name the tool.
+
 ## 1.0.14 — 2026-09-18
 
 - Interactive scanner graph: hourly axes, dual scale (events / unique sources), peak callout, hover/click quantities, last-hour / mean / active-hour stats. Still does not name the tool.
