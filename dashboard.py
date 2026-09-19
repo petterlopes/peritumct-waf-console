@@ -294,8 +294,9 @@ _SECRET_SCAN_PATH = re.compile(
 )
 _SCANNER_NOTE = (
     "HTTP AppSec/LAPI scanner detections in this window. "
+    "Hover or click an hour for time, quantity and action split. "
     "The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. "
-    "L3/L4 scans (hping3, nmap SYN) are invisible here. Updates every 15s."
+    "L3/L4 scans (SYN/hping) are invisible here. Updates every 15s."
 )
 
 
@@ -341,11 +342,30 @@ def _hour_series(rows: list[dict], now: datetime) -> dict:
     return {"labels": labels, "events": events, "blocked": blocked, "logged": logged, "tz": "GMT-3"}
 
 
+def _median(nums: list[int]) -> float:
+    if not nums:
+        return 0.0
+    ordered = sorted(nums)
+    n = len(ordered)
+    mid = n // 2
+    if n % 2:
+        return float(ordered[mid])
+    return (ordered[mid - 1] + ordered[mid]) / 2.0
+
+
 def _scanner_pack(rows: list[dict], now: datetime, labels: list[str]) -> dict[str, Any]:
     events = [0] * 24
+    blocked = [0] * 24
+    logged = [0] * 24
     hour_ips: list[set[str]] = [set() for _ in range(24)]
     all_ips: set[str] = set()
     total = 0
+    blocked_total = 0
+    logged_total = 0
+    if not labels or len(labels) != 24:
+        labels = list((_hour_series([], now).get("labels") or []))
+        if len(labels) != 24:
+            labels = [f"{i:02d}:00" for i in range(24)]
     for row in rows:
         if not is_scanner_event(row.get("ua") or "", row.get("scenario") or "", row.get("path") or ""):
             row["scanner"] = False
@@ -355,12 +375,40 @@ def _scanner_pack(rows: list[dict], now: datetime, labels: list[str]) -> dict[st
         ip = str(row.get("ip") or "")
         if ip:
             all_ips.add(ip)
+        action = row.get("action") or ""
+        if action == "Block":
+            blocked_total += 1
+        elif action == "Log":
+            logged_total += 1
         idx = _hour_bucket(row.get("_dt"), now)
         if idx is None:
             continue
         events[idx] += 1
         if ip:
             hour_ips[idx].add(ip)
+        if action == "Block":
+            blocked[idx] += 1
+        elif action == "Log":
+            logged[idx] += 1
+    sources_hourly = [len(slot) for slot in hour_ips]
+    peak_idx = 0
+    for i, count in enumerate(events):
+        if count >= events[peak_idx]:
+            peak_idx = i
+    hours = [
+        {
+            "i": i,
+            "label": labels[i],
+            "events": events[i],
+            "sources": sources_hourly[i],
+            "blocked": blocked[i],
+            "logged": logged[i],
+        }
+        for i in range(24)
+    ]
+    last = hours[-1]
+    peak = hours[peak_idx]
+    n_src = len(all_ips)
     return {
         "ok": True,
         "source": SOURCE,
@@ -369,9 +417,29 @@ def _scanner_pack(rows: list[dict], now: datetime, labels: list[str]) -> dict[st
         "tz": "GMT-3",
         "labels": labels,
         "events": events,
-        "sources_hourly": [len(slot) for slot in hour_ips],
+        "sources_hourly": sources_hourly,
+        "blocked_hourly": blocked,
+        "logged_hourly": logged,
+        "hours": hours,
         "events_total": total,
-        "sources": len(all_ips),
+        "sources": n_src,
+        "blocked_total": blocked_total,
+        "logged_total": logged_total,
+        "last_hour": last,
+        "peak": peak,
+        "stats": {
+            "mean_events": round(sum(events) / 24.0, 2),
+            "median_events": _median(events),
+            "max_events": events[peak_idx],
+            "hours_active": sum(1 for count in events if count),
+            "events_per_source": round(total / n_src, 2) if n_src else 0.0,
+            "last_hour_events": last["events"],
+            "last_hour_sources": last["sources"],
+            "peak_idx": peak_idx,
+            "peak_label": peak["label"],
+            "peak_events": peak["events"],
+            "peak_sources": peak["sources"],
+        },
     }
 
 

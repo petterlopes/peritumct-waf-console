@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.14 — 2026-09-18
+
+- Interactive scanner graph: hourly axes, dual scale (events / unique sources), peak callout, hover/click quantities, last-hour / mean / active-hour stats. Still does not name the tool.
+
 ## 1.0.13 — 2026-09-18
 
 - Dashboard real-time scanner graph (events + unique sources). Does not name the tool. Ordinary browser traffic is not counted.

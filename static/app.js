@@ -34,6 +34,7 @@ let dashPage = { events: 0, logs: 0 }
 let dashFilters = { ip: "", path: "", country: "", action: "", method: "" }
 let dashGroupBy = ""
 let dashOpenRow = ""
+let scannerPin = null
 
 function fmtTime(ts) {
   if (!ts) return "—"
@@ -719,21 +720,188 @@ function dashLines(svg, series) {
 
 function scannerChart(svg, pack) {
   if (!svg || !pack) return
-  const ev = pack.events || []
-  const src = pack.sources_hourly || []
-  const max = Math.max(1, ...ev, ...src)
-  const w = 720
-  const hgt = 180
-  const n = Math.max(ev.length, 2)
-  const step = w / (n - 1)
-  const path = (arr, color, fill) => {
-    const pts = arr.map((v, i) => (i * step).toFixed(1) + " " + (hgt - 14 - (v / max) * (hgt - 28)).toFixed(1))
-    const line = "<path d=\"M " + pts.join(" L ") + "\" fill=\"none\" stroke=\"" + color + "\" stroke-width=\"2.2\"></path>"
-    if (!fill) return line
-    const area = "M 0 " + (hgt - 8) + " L " + pts.join(" L ") + " L " + ((n - 1) * step).toFixed(1) + " " + (hgt - 8) + " Z"
-    return "<path d=\"" + area + "\" fill=\"" + fill + "\" opacity=\"0.18\"></path>" + line
+  const hours = scannerHours(pack)
+  const n = Math.max(hours.length, 2)
+  const evMax = Math.max(1, ...hours.map((h) => h.events || 0))
+  const srcMax = Math.max(1, ...hours.map((h) => h.sources || 0))
+  const W = 720, H = 240, L = 48, R = 48, T = 20, B = 42
+  const pw = W - L - R, ph = H - T - B
+  const step = pw / (n - 1)
+  const yEv = (v) => T + ph - (v / evMax) * ph
+  const ySrc = (v) => T + ph - (v / srcMax) * ph
+  const xAt = (i) => L + i * step
+  const ptsEv = hours.map((h, i) => xAt(i).toFixed(1) + " " + yEv(h.events || 0).toFixed(1))
+  const ptsSrc = hours.map((h, i) => xAt(i).toFixed(1) + " " + ySrc(h.sources || 0).toFixed(1))
+  const area = "M " + L + " " + (T + ph) + " L " + ptsEv.join(" L ") + " L " + xAt(n - 1).toFixed(1) + " " + (T + ph) + " Z"
+  let grid = ""
+  for (let i = 0; i < n; i += 3) {
+    const x = xAt(i).toFixed(1)
+    grid += "<line x1=\"" + x + "\" y1=\"" + T + "\" x2=\"" + x + "\" y2=\"" + (T + ph) + "\" class=\"scanner-grid\"></line>"
+    grid += "<text x=\"" + x + "\" y=\"" + (H - 14) + "\" class=\"scanner-axis scanner-axis-x\">" + esc(hours[i].label || "") + "</text>"
   }
-  svg.innerHTML = path(ev, "#3ee0ff", "#3ee0ff") + path(src, "#ffb020", "")
+  ;[0, 0.5, 1].forEach((f) => {
+    const y = (T + ph - f * ph).toFixed(1)
+    grid += "<line x1=\"" + L + "\" y1=\"" + y + "\" x2=\"" + (W - R) + "\" y2=\"" + y + "\" class=\"scanner-grid\"></line>"
+    grid += "<text x=\"" + (L - 6) + "\" y=\"" + (Number(y) + 3) + "\" class=\"scanner-axis scanner-axis-y\">" + Math.round(evMax * f) + "</text>"
+    grid += "<text x=\"" + (W - R + 6) + "\" y=\"" + (Number(y) + 3) + "\" class=\"scanner-axis scanner-axis-yr\">" + Math.round(srcMax * f) + "</text>"
+  })
+  let peakIdx = (pack.stats && pack.stats.peak_idx != null) ? Number(pack.stats.peak_idx) : 0
+  if (!Number.isFinite(peakIdx) || peakIdx < 0 || peakIdx >= n) peakIdx = 0
+  hours.forEach((h, i) => { if ((h.events || 0) >= (hours[peakIdx].events || 0)) peakIdx = i })
+  const peak = hours[peakIdx] || hours[0]
+  const px = xAt(peakIdx)
+  const py = yEv(peak.events || 0)
+  const pin = (scannerPin != null && scannerPin >= 0 && scannerPin < n) ? scannerPin : null
+  let hits = ""
+  hours.forEach((_, i) => {
+    const x0 = i === 0 ? L : L + (i - 0.5) * step
+    const x1 = i === n - 1 ? (W - R) : L + (i + 0.5) * step
+    hits += "<rect class=\"scanner-hit\" data-i=\"" + i + "\" x=\"" + x0.toFixed(1) + "\" y=\"" + T + "\" width=\"" + Math.max(4, x1 - x0).toFixed(1) + "\" height=\"" + ph + "\"></rect>"
+  })
+  const pinLine = pin == null ? "" :
+    "<line class=\"scanner-pin\" x1=\"" + xAt(pin).toFixed(1) + "\" y1=\"" + T + "\" x2=\"" + xAt(pin).toFixed(1) + "\" y2=\"" + (T + ph) + "\"></line>"
+  const peakMark = (peak.events > 0)
+    ? "<circle class=\"scanner-peak\" cx=\"" + px.toFixed(1) + "\" cy=\"" + py.toFixed(1) + "\" r=\"4.5\"></circle>" +
+      "<text class=\"scanner-peak-lbl\" x=\"" + Math.min(px + 8, W - R - 90).toFixed(1) + "\" y=\"" + Math.max(py - 8, T + 12).toFixed(1) + "\">" +
+      esc(t("dash.scanners.peak", "Peak")) + " " + peak.events + " · " + esc(peak.label || "") + "</text>"
+    : ""
+  svg.setAttribute("viewBox", "0 0 720 240")
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet")
+  svg.innerHTML = grid +
+    "<path d=\"" + area + "\" class=\"scanner-area\"></path>" +
+    "<path d=\"M " + ptsEv.join(" L ") + "\" class=\"scanner-line-ev\"></path>" +
+    "<path d=\"M " + ptsSrc.join(" L ") + "\" class=\"scanner-line-src\"></path>" +
+    pinLine + peakMark + hits
+  svg._scannerPack = pack
+  svg._scannerHours = hours
+  bindScannerChart(svg)
+}
+
+function scannerHours(pack) {
+  if (pack && pack.hours && pack.hours.length) return pack.hours
+  const labels = (pack && pack.labels) || []
+  const ev = (pack && pack.events) || []
+  const src = (pack && pack.sources_hourly) || []
+  const bl = (pack && pack.blocked_hourly) || []
+  const lg = (pack && pack.logged_hourly) || []
+  const n = Math.max(labels.length, ev.length, 24)
+  const hours = []
+  for (let i = 0; i < n; i++) {
+    hours.push({
+      i,
+      label: labels[i] || "",
+      events: ev[i] || 0,
+      sources: src[i] || 0,
+      blocked: bl[i] || 0,
+      logged: lg[i] || 0
+    })
+  }
+  return hours
+}
+
+function fmtScan(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return "0"
+  if (Number.isInteger(n)) return String(n)
+  return n.toFixed(1)
+}
+
+function scannerTipHtml(h) {
+  if (!h) return ""
+  return "<div class=\"tip-h\">" + esc(h.label || "") + "</div>" +
+    "<div><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (h.events || 0) + "</b></div>" +
+    "<div><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (h.sources || 0) + "</b></div>" +
+    "<div><span>" + t("dash.kpi.blocked", "Blocked") + "</span><b>" + (h.blocked || 0) + "</b></div>" +
+    "<div><span>" + t("dash.kpi.logged", "Logged (OOB)") + "</span><b>" + (h.logged || 0) + "</b></div>"
+}
+
+function scannerFocusText(h, pack) {
+  if (!h) return t("dash.scanners.focus_idle", "Hover or click an hour for counts.")
+  const tz = (pack && pack.tz) || "GMT-3"
+  return h.label + " " + tz +
+    " · " + t("dash.kpi.events", "Events") + " " + (h.events || 0) +
+    " · " + t("dash.scanners.sources", "Sources") + " " + (h.sources || 0) +
+    " · " + t("dash.kpi.blocked", "Blocked") + " " + (h.blocked || 0) +
+    " · " + t("dash.kpi.logged", "Logged (OOB)") + " " + (h.logged || 0)
+}
+
+function renderScannerFocus(h, pack) {
+  const el = $("dashScannerFocus")
+  if (el) el.textContent = scannerFocusText(h, pack)
+}
+
+function showScannerTip(wrap, ev, h) {
+  const tip = $("dashScannerTip")
+  if (!tip || !wrap) return
+  tip.innerHTML = scannerTipHtml(h)
+  tip.classList.remove("hidden")
+  const rect = wrap.getBoundingClientRect()
+  let x = ev.clientX - rect.left + 12
+  let y = ev.clientY - rect.top + 12
+  const tw = tip.offsetWidth || 168
+  const th = tip.offsetHeight || 90
+  if (x + tw > rect.width - 8) x = Math.max(8, rect.width - tw - 8)
+  if (y + th > rect.height - 8) y = Math.max(8, ev.clientY - rect.top - th - 8)
+  tip.style.left = x + "px"
+  tip.style.top = y + "px"
+}
+
+function hideScannerTip() {
+  const tip = $("dashScannerTip")
+  if (tip) tip.classList.add("hidden")
+}
+
+function pinScannerHour(i, pack) {
+  const hours = scannerHours(pack || {})
+  if (i == null || i < 0 || i >= hours.length) scannerPin = null
+  else scannerPin = (scannerPin === i) ? null : i
+  scannerChart($("dashScanners"), pack)
+  renderScannerHours(pack)
+  renderScannerFocus(scannerPin != null ? hours[scannerPin] : null, pack)
+}
+
+function renderScannerHours(pack) {
+  const el = $("dashScannerHours")
+  if (!el) return
+  const hours = scannerHours(pack || {})
+  const max = Math.max(1, ...hours.map((h) => h.events || 0))
+  el.innerHTML = hours.map((h, i) => {
+    const pct = Math.round(100 * (h.events || 0) / max)
+    const on = scannerPin === i ? " active" : ""
+    const title = (h.label || "") + " · " + t("dash.kpi.events", "Events") + " " + (h.events || 0) +
+      " · " + t("dash.scanners.sources", "Sources") + " " + (h.sources || 0)
+    return "<button type=\"button\" class=\"scanner-hour" + on + "\" data-i=\"" + i + "\" title=\"" + esc(title) + "\">" +
+      "<span class=\"bar\"><i style=\"height:" + pct + "%\"></i></span>" +
+      "<span class=\"hh\">" + esc(String(h.label || "").slice(0, 2)) + "</span></button>"
+  }).join("")
+}
+
+function bindScannerChart(svg) {
+  if (!svg || svg._scannerBound) return
+  svg._scannerBound = true
+  const pick = (ev) => {
+    const hit = ev.target.closest && ev.target.closest("[data-i]")
+    if (!hit) return null
+    const i = Number(hit.getAttribute("data-i"))
+    const hours = svg._scannerHours || []
+    return Number.isFinite(i) ? { i, h: hours[i] } : null
+  }
+  svg.addEventListener("mousemove", (ev) => {
+    const got = pick(ev)
+    if (!got || !got.h) return
+    showScannerTip($("dashScannerWrap") || svg.parentElement, ev, got.h)
+    renderScannerFocus(got.h, svg._scannerPack)
+  })
+  svg.addEventListener("click", (ev) => {
+    const got = pick(ev)
+    if (!got) return
+    pinScannerHour(got.i, svg._scannerPack)
+  })
+  svg.addEventListener("mouseleave", () => {
+    hideScannerTip()
+    const hours = svg._scannerHours || []
+    renderScannerFocus(scannerPin != null ? hours[scannerPin] : null, svg._scannerPack)
+  })
 }
 
 function topCard(title, pack, key) {
@@ -846,16 +1014,28 @@ function renderDashboard(data) {
   dashLines($("dashSeries"), data.series)
   const scanners = data.scanners || {}
   scannerChart($("dashScanners"), scanners)
+  renderScannerHours(scanners)
+  const hours = scannerHours(scanners)
+  renderScannerFocus(scannerPin != null ? hours[scannerPin] : null, scanners)
   if ($("dashScannerPoll")) $("dashScannerPoll").textContent = (scanners.poll_s || 15) + "s"
+  const st = scanners.stats || {}
+  const last = scanners.last_hour || {}
   if ($("dashScannerKpis")) {
     $("dashScannerKpis").innerHTML =
       "<div class=\"kpi-tile cyan\"><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (scanners.events_total || 0) + "</b></div>" +
-      "<div class=\"kpi-tile orange\"><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (scanners.sources || 0) + "</b></div>"
+      "<div class=\"kpi-tile orange\"><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (scanners.sources || 0) + "</b></div>" +
+      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.last", "Last hour") + "</span><b>" + (st.last_hour_events ?? last.events ?? 0) + "</b><small>" + esc(last.label || "") + "</small></div>" +
+      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.peak", "Peak") + "</span><b>" + (st.peak_events ?? 0) + "</b><small>" + esc(st.peak_label || "") + "</small></div>" +
+      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.mean", "Mean / hour") + "</span><b>" + fmtScan(st.mean_events) + "</b></div>" +
+      "<div class=\"kpi-tile\"><span>" + t("dash.scanners.active", "Active hours") + "</span><b>" + (st.hours_active ?? 0) + "<i>/24</i></b></div>"
   }
   if ($("dashScannerLegend")) {
     $("dashScannerLegend").innerHTML =
       "<span class=\"leg-logged\">" + t("dash.kpi.events", "Events") + "</span>" +
       "<span class=\"leg-blocked\">" + t("dash.scanners.sources", "Sources") + "</span>" +
+      "<span>" + t("dash.scanners.per_source", "Events / source") + " " + fmtScan(st.events_per_source) + "</span>" +
+      "<span>" + t("dash.kpi.blocked", "Blocked") + " " + (scanners.blocked_total || 0) + "</span>" +
+      "<span>" + t("dash.kpi.logged", "Logged (OOB)") + " " + (scanners.logged_total || 0) + "</span>" +
       "<span>" + esc(scanners.tz || "GMT-3") + "</span>"
   }
   if ($("dashLegend")) {
@@ -1092,6 +1272,12 @@ if ($("dashTop")) $("dashTop").addEventListener("click", (ev) => {
   const row = ev.target.closest("[data-filter-key]")
   if (!row) return
   setDashFilter(row.getAttribute("data-filter-key"), row.getAttribute("data-filter-val") || "")
+})
+if ($("dashScannerHours")) $("dashScannerHours").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-i]")
+  if (!btn) return
+  const pack = (cache.dashboard && cache.dashboard.scanners) || {}
+  pinScannerHour(Number(btn.getAttribute("data-i")), pack)
 })
 if ($("dashCustomRule")) $("dashCustomRule").addEventListener("click", () => showView("sites"))
 ;["dashEventsBody", "dashLogsBody"].forEach((id) => {

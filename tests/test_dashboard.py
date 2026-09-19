@@ -99,8 +99,12 @@ class DashboardTests(unittest.TestCase):
         scanners = data.get("scanners") or {}
         self.assertEqual(scanners.get("events_total"), 1)
         self.assertEqual(scanners.get("sources"), 1)
+        self.assertEqual(len(scanners.get("hours") or []), 24)
+        self.assertEqual((scanners.get("stats") or {}).get("hours_active"), 1)
+        self.assertEqual((scanners.get("stats") or {}).get("peak_events"), 1)
         self.assertTrue(data["logs"][0].get("scanner"))
         self.assertNotIn("tools", scanners)
+        self.assertNotIn("named_events", scanners)
 
 
 class ScannerDetectTests(unittest.TestCase):
@@ -137,6 +141,54 @@ class ScannerDetectTests(unittest.TestCase):
         self.assertFalse(dashboard.is_scanner_event("Zapier-Client/1.0", "", "/"))
         self.assertFalse(dashboard.is_scanner_event("NucleicClient/1.0", "", "/"))
         self.assertFalse(dashboard.is_scanner_event("Mozilla/5.0", "", "/"))
+
+    def test_scanner_hourly_stats_without_tool_names(self) -> None:
+        now = datetime(2026, 9, 17, 22, 0, tzinfo=timezone.utc)
+
+        def alert(ts: str, ip: str) -> dict:
+            return {
+                "created_at": ts,
+                "scenario": "crowdsecurity/vpatch-env-access",
+                "source": {"ip": ip, "cn": "NL"},
+                "events": [
+                    {
+                        "meta": [
+                            {"key": "target_fqdn", "value": "periciacomputacional.com"},
+                            {"key": "target_uri", "value": "/.env"},
+                        ]
+                    }
+                ],
+            }
+
+        data = dashboard.build(
+            [
+                alert("2026-09-17T21:10:00Z", "203.0.113.10"),
+                alert("2026-09-17T21:40:00Z", "203.0.113.11"),
+                alert("2026-09-17T12:00:00Z", "198.51.100.8"),
+            ],
+            hosts=["periciacomputacional.com"],
+            now=now,
+        )
+        pack = data["scanners"]
+        self.assertNotIn("tools", pack)
+        self.assertNotIn("named_events", pack)
+        self.assertEqual(pack["events_total"], 3)
+        self.assertEqual(pack["sources"], 3)
+        self.assertEqual(len(pack["hours"]), 24)
+        self.assertEqual(pack["stats"]["hours_active"], 2)
+        self.assertEqual(pack["stats"]["peak_events"], 2)
+        self.assertEqual(pack["stats"]["last_hour_events"], 2)
+        self.assertEqual(pack["last_hour"]["sources"], 2)
+        self.assertEqual(pack["stats"]["mean_events"], round(3 / 24, 2))
+        self.assertEqual(pack["hours"][pack["stats"]["peak_idx"]]["label"], pack["stats"]["peak_label"])
+        self.assertTrue(str(pack["stats"]["peak_label"]).endswith(":00"))
+        self.assertEqual(len(pack["blocked_hourly"]), 24)
+        self.assertEqual(len(pack["logged_hourly"]), 24)
+        self.assertEqual(sum(pack["events"]), 3)
+        blob = str(pack).lower()
+        self.assertNotIn("nmap", blob)
+        self.assertNotIn("acunetix", blob)
+        self.assertNotIn("zaproxy", blob)
 
     def test_ip_filter_and_ja4h_tiles(self) -> None:
         now = datetime(2026, 9, 17, 22, 0, tzinfo=timezone.utc)

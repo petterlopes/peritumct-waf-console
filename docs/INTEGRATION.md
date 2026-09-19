@@ -216,7 +216,11 @@ not T1190, unless the Hub alert already carries a catalog MITRE id. Exposed
 `.git/config` (`vpatch-git-config`) is A01, not A06. Dashboard counts are
 **unique source IPs** after collapsing to one row per IP + OWASP (in-band Hub
 names win over CrowdSec OOB “lfi” labels on `/.env` probes; the row keeps an
-`events` tally and merged ATT&CK ids).
+`events` tally and merged ATT&CK ids). The Security dashboard scanner graph is
+anonymous HTTP detection (no tool names): 24 hourly buckets in GMT-3, dual-scale
+events vs unique sources, last-hour / peak / mean / active-hour statistics, and
+hover or click for time, quantity and Block/Log split. Ordinary Chrome/Firefox
+paths are not counted; L3/L4 scans are invisible to this console.
 
 OpenCTI-inspired connectors (`INTERNAL_ENRICHMENT`, `EXTERNAL_IMPORT`, `STREAM`,
 `INTERNAL_EXPORT_FILE`) are local only. Operators download:
