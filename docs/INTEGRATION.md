@@ -8,6 +8,9 @@ Tested with CrowdSec **v1.8.1** (`crowdsecurity/crowdsec:v1.8.1`, commit `909b51
 Release: https://github.com/crowdsecurity/crowdsec/releases#release-v1.8.1  
 License: https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file
 
+**Homologated runtimes:** Docker Compose, Podman Compose, Kubernetes (Traefik CRDs), and Cilium networking —
+see [HOMOLOGATION.md](HOMOLOGATION.md).
+
 ## 1. Architecture
 
 ```
@@ -91,6 +94,8 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_ENGINE_CACHE_TTL` | `3` | Seconds to cache engine TCP/listen probes |
 | `WAF_POST_RATE` | `60` | Max POST mutations per client IP / minute |
 | `WAF_HEAVY_GET_RATE` | `40` | Max heavy GETs (dashboard/coverage/correlation/overview) per IP / minute |
+| `WAF_APP_PRODUCT` | `waf-console` | Product name in health `version` / `Server` header |
+| `WAF_APP_VERSION` | `1.0.18` | Semver string paired with product |
 | `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map (**loopback only**) |
 | `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |
 | `WAF_MISP_KEY` | empty | Stored for operators; **never** returned in JSON |
@@ -300,3 +305,19 @@ Equivalent: `tsh ssh -N -L 18990:127.0.0.1:18990 root@localhost`
 
 Do not expose `:18990` on a public address. Overlay access remains
 `https://expertsforensic.com/waf/` with `expertsforensic-admin-only` (no CrowdSec bouncer).
+
+## 16. Homologated platforms (Docker, Podman, Cilium, Kubernetes)
+
+This console was homologated on:
+
+| Stack | Typical layout |
+|-------|----------------|
+| **Docker Compose** | `network_mode: host`, loopback bind, local CrowdSec |
+| **Podman Compose** | Same as Docker; systemd units + optional 15‑minute GitHub auto-update |
+| **Kubernetes** | Traefik `Middleware` / `IngressRoute`; console on node loopback via Endpoints/socat |
+| **Cilium** | CNI / LoadBalancer in front of Traefik; AppSec/LAPI on node InternalIP |
+
+Details, diagrams, and the acceptance checklist: [HOMOLOGATION.md](HOMOLOGATION.md).
+
+Cilium + K8s operators keep cluster SoT separately (middlewares, Traefik Helm values,
+reconcile scripts). This repository stays runtime-agnostic and stdlib-only.

@@ -12,8 +12,10 @@ Do not add production PyPI dependencies without a CSO review.
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ruff check .
-bandit -q -r app.py control.py catalog.py
+bandit -q -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py persist.py
 ```
+
+Homologation expectations (Docker / Podman / Cilium / K8s): [docs/HOMOLOGATION.md](docs/HOMOLOGATION.md).
 
 ## Pull requests
 
