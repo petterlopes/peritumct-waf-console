@@ -207,7 +207,7 @@ def http_probe(host: str, server: str) -> dict:
     try:
         sock = ctx.wrap_socket(socket.create_connection((server, 443), timeout=8), server_hostname=host)
         sock.sendall(
-            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.6\r\n"
+            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.16\r\n"
             f"Accept-Encoding: identity\r\nConnection: close\r\n\r\n".encode()
         )
         data = b""
@@ -229,6 +229,15 @@ def http_probe(host: str, server: str) -> dict:
         return {"host": host, "via": server, "status": 0, "error": str(exc)}
 
 
+def http_status_ok(code) -> bool:
+    """Operator-healthy probe: 2xx success or 3xx redirect on GET /."""
+    try:
+        c = int(code)
+    except (TypeError, ValueError):
+        return False
+    return 200 <= c < 400
+
+
 def engine_status() -> dict:
     profiles = read_text(PROFILES_PATH)
     acquis = read_text(CONFIG_ROOT / "acquis.d" / "appsec.yaml")
@@ -242,7 +251,7 @@ def engine_status() -> dict:
         "include_large_uploads": bool(re.search(r"INCLUDE_LARGE_UPLOADS\s*[:=]\s*(1|true|yes)", acquis, re.I)),
         "creds_present": CREDS_PATH.is_file(),
         "bouncer_key_present": bool(bouncer_key()),
-        "version": "waf-console/1.0.6",
+        "version": "waf-console/1.0.16",
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
     }
 
@@ -603,7 +612,7 @@ def add_ban(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "waf-console/1.0.6"
+    server_version = "waf-console/1.0.16"
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -885,7 +894,7 @@ class Handler(BaseHTTPRequestHandler):
             err = str(exc)
         hosts = catalog_mod.in_scope_hosts()
         domains = [http_probe(h, "127.0.0.1") for h in hosts]
-        ok_hosts = sum(1 for d in domains if d.get("status") == 200)
+        ok_hosts = sum(1 for d in domains if http_status_ok(d.get("status")))
         return self._send(
             200,
             {

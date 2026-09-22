@@ -26,6 +26,15 @@ _HTTP_VER = {"09": "HTTP/0.9", "10": "HTTP/1.0", "11": "HTTP/1.1", "20": "HTTP/2
 _FILTER_KEYS = ("ip", "path", "country", "action", "method")
 
 
+def _probe_ok(code: Any) -> bool:
+    """2xx/3xx = healthy origin probe (redirects on GET / are expected)."""
+    try:
+        c = int(code)
+    except (TypeError, ValueError):
+        return False
+    return 200 <= c < 400
+
+
 def _unwrap(raw: Any) -> str:
     text = str(raw if raw is not None else "").strip()
     if not text:
@@ -487,7 +496,7 @@ def _action_items(engine: dict, rows: list[dict], origin: list[dict]) -> list[di
             "kind": "insight",
             "view": "alerts",
         })
-    down = [p.get("host") for p in origin if isinstance(p, dict) and p.get("status") != 200]
+    down = [p.get("host") for p in origin if isinstance(p, dict) and not _probe_ok(p.get("status"))]
     if down:
         items.append({
             "id": "origin-down",
@@ -713,7 +722,7 @@ def build(
     blocked = actions.get("Block", 0)
     logged = actions.get("Log", 0)
     total = len(rows)
-    origin_ok = sum(1 for p in origin if p.get("status") == 200)
+    origin_ok = sum(1 for p in origin if _probe_ok(p.get("status")))
     origin_n = len(origin)
     series = _hour_series(rows, now)
     scanners = _scanner_pack(rows, now, series.get("labels") or [])

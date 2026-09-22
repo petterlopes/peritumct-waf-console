@@ -2,6 +2,43 @@ const $ = (id) => document.getElementById(id)
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]))
 }
+
+/** Coerce probe/API status to int; 0 = missing/error. */
+function httpStatusCode(value) {
+  if (value == null || value === "" || value === "—") return 0
+  const n = Number(value)
+  return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0
+}
+
+/**
+ * Semantic HTTP status class for Domains / health UI.
+ * 1xx info · 2xx success (green) · 3xx redirect (cyan) · 4xx client (orange) · 5xx/0 error (red)
+ */
+function httpStatusClass(value) {
+  const code = httpStatusCode(value)
+  if (code >= 100 && code < 200) return "http-1xx"
+  if (code >= 200 && code < 300) return "http-2xx"
+  if (code >= 300 && code < 400) return "http-3xx"
+  if (code >= 400 && code < 500) return "http-4xx"
+  if (code >= 500 && code < 600) return "http-5xx"
+  return "http-err"
+}
+
+/** Origin/public considered up for operators: 2xx and 3xx (redirects on GET /). */
+function httpStatusHealthy(value) {
+  const code = httpStatusCode(value)
+  return code >= 200 && code < 400
+}
+
+function httpStatusTag(value) {
+  const code = httpStatusCode(value)
+  if (code >= 200 && code < 300) return { label: "Active", cls: "tracking" }
+  if (code >= 300 && code < 400) return { label: "Redirect", cls: "redirect" }
+  if (code >= 400 && code < 500) return { label: "Client", cls: "warn" }
+  if (code >= 500 && code < 600) return { label: "Down", cls: "down" }
+  return { label: "Check", cls: "" }
+}
+
 const views = ["dashboard", "overview", "sites", "map", "decisions", "alerts", "owasp", "mitre", "rules", "allowlists", "metrics", "admin", "domains", "engine", "credits", "privacy", "terms"]
 function viewTitles() {
   return {
@@ -243,8 +280,9 @@ function renderOverview(data) {
     `<li>${n}<div class="bar"><span style="width:${ok ? 100 : 18}%"></span></div></li>`
   ).join("")
   $("edgeMap").innerHTML = (data.domains || []).map((d) => {
-    const ok = d.status === 200
-    return `<div class="edge-node"><b>${d.host}</b><span class="${ok ? "ok" : "bad"}">${ok ? "200 origin" : (d.status || d.error || "fail")}</span></div>`
+    const code = httpStatusCode(d.status)
+    const label = code || d.error || "fail"
+    return `<div class="edge-node"><b>${esc(d.host)}</b><span class="${httpStatusClass(d.status)}">${esc(label)}</span></div>`
   }).join("")
   $("rtaRings").innerHTML = [
     ["LAPI", eng.lapi_listen],
@@ -650,17 +688,26 @@ function renderDomains(data) {
   ;(data.public || []).forEach((d) => { pub[d.host] = d })
   $("domainsBody").innerHTML = (data.origin || []).map((d) => {
     const p = pub[d.host] || {}
-    const oc = d.status === 200 ? "ok" : "bad"
-    const pc = p.status === 200 ? "ok" : "bad"
-    return `<tr><td>${d.host}</td><td class="${oc}">${d.status || d.error}</td><td class="${pc}">${p.status || p.error || "—"}</td></tr>`
+    const oLabel = d.status || d.error || "—"
+    const pLabel = p.status || p.error || "—"
+    return `<tr><td>${esc(d.host)}</td><td class="${httpStatusClass(d.status)}">${esc(oLabel)}</td><td class="${httpStatusClass(p.status)}">${esc(pLabel)}</td></tr>`
   }).join("")
   $("hostTiles").innerHTML = (data.origin || []).map((d) => {
     const p = pub[d.host] || {}
-    const ok = d.status === 200 && p.status === 200
-    return `<article class="card host-tile ${ok ? "glow-green" : ""}">
-      <div class="card-head"><h2>${d.host.replace(".neurofocus.com.br", "").replace(".com", "")}</h2><span class="tag ${ok ? "tracking" : ""}">${ok ? "Active" : "Check"}</span></div>
-      <div class="kpi ${ok ? "ok" : "bad"}">${d.status || "—"}</div>
-      <p>${t("public")} ${p.status || "—"}</p>
+    const code = httpStatusCode(d.status)
+    const tag = httpStatusTag(d.status)
+    const glow = code >= 200 && code < 300 ? "glow-2xx" : (code >= 300 && code < 400 ? "glow-3xx" : "")
+    const title = d.host
+      .replace(/\.neurofocus\.com\.br$/i, "")
+      .replace(/\.expertsforensic\.com$/i, "")
+      .replace(/\.com$/i, "")
+    const pubLine = (data.public && data.public.length)
+      ? `${t("public")} <span class="${httpStatusClass(p.status)}">${esc(p.status || p.error || "—")}</span>`
+      : `${t("public")} —`
+    return `<article class="card host-tile ${glow}">
+      <div class="card-head"><h2>${esc(title)}</h2><span class="tag ${tag.cls}">${esc(tag.label)}</span></div>
+      <div class="kpi ${httpStatusClass(d.status)}">${esc(code || d.error || "—")}</div>
+      <p>${pubLine}</p>
     </article>`
   }).join("")
 }
@@ -1078,9 +1125,9 @@ function renderDashboard(data) {
   if ($("dashOriginBody")) {
     $("dashOriginBody").innerHTML = origin.map((d) => {
       const p = pubMap[d.host] || {}
-      const oc = d.status === 200 ? "ok" : "bad"
-      const pc = p.status === 200 ? "ok" : "bad"
-      return "<tr><td>" + esc(d.host) + "</td><td class=\"" + oc + "\">" + esc(d.status || d.error || "—") + "</td><td class=\"" + pc + "\">" + esc(p.status || p.error || "—") + "</td></tr>"
+      const oLabel = d.status || d.error || "—"
+      const pLabel = p.status || p.error || "—"
+      return "<tr><td>" + esc(d.host) + "</td><td class=\"" + httpStatusClass(d.status) + "\">" + esc(oLabel) + "</td><td class=\"" + httpStatusClass(p.status) + "\">" + esc(pLabel) + "</td></tr>"
     }).join("") || "<tr><td colspan=\"3\">" + t("empty") + "</td></tr>"
   }
   const perf = data.appsec || {}

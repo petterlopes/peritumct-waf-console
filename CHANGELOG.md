@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.16 — 2026-09-22
+
+- Domains health cards: HTTP status colors by class (2xx green, 3xx cyan, 4xx orange, 5xx/error red)
+- Fix false “all red” when `PUBLIC_IP` is unset (no longer require public 200 for tile color)
+- Origin/public tables and overview edge map use the same status palette
+- Probe “healthy” counts treat 2xx and 3xx (redirect) as up
+
 ## 1.0.15 — 2026-09-18
 
 - Scanner card layout: large single-scale bar chart, equal KPI tiles, plot and 24h strip share the same inset. Sources stay orange dots on the event axis (no dual Y). Still does not name the tool.
