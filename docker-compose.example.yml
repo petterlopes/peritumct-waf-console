@@ -6,7 +6,7 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:1.0.5
+    image: peritumct-waf-console:1.0.17
     container_name: waf-console
     network_mode: host
     environment:
@@ -21,6 +21,9 @@ services:
       WAF_CONTROL: /var/lib/waf-control
       WAF_SITES_FILE: /var/lib/waf-control/sites.json
       WAF_ALLOWLIST: cso-operators
+      WAF_PROBE_CACHE_TTL: "20"
+      WAF_METRICS_CACHE_TTL: "10"
+      WAF_PROBE_WORKERS: "8"
       # Never set WAF_TRAEFIK_DYNAMIC_DIR. The console must not write Traefik files.
       PUBLIC_IP: ""
       # Optional edge marker + great-circle routes (operator-supplied, not GeoIP):

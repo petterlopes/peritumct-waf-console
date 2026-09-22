@@ -16,12 +16,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+import netguard
+
 CONTROL_DIR = Path(os.environ.get("WAF_CONTROL", "/var/lib/waf-control"))
 STORE = CONTROL_DIR / "routes.json"
 FRAGMENT_NAME = os.environ.get("WAF_TRAEFIK_FRAGMENT", "waf-admin-routes.yaml")
 DYNAMIC_DIR = Path(os.environ.get("WAF_TRAEFIK_DYNAMIC_DIR", "") or "")
-TRAEFIK_HTTP = os.environ.get("TRAEFIK_API", "http://127.0.0.1:8080/api/http/routers")
-TRAEFIK_TCP = os.environ.get("TRAEFIK_TCP_API", "http://127.0.0.1:8080/api/tcp/routers")
+TRAEFIK_HTTP = netguard.assert_loopback_http_url(
+    os.environ.get("TRAEFIK_API", "http://127.0.0.1:8080/api/http/routers"),
+    name="TRAEFIK_API",
+)
+TRAEFIK_TCP = netguard.assert_loopback_http_url(
+    os.environ.get("TRAEFIK_TCP_API", "http://127.0.0.1:8080/api/tcp/routers"),
+    name="TRAEFIK_TCP_API",
+)
 TSH_NODE = os.environ.get("WAF_TUNNEL_NODE", "root@localhost")
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,47}$")

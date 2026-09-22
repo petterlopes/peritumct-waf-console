@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import catalog as catalog_mod
+import netguard
 
 CONFIG_ROOT = Path(os.environ.get("CROWDSEC_CONFIG", "/etc/crowdsec"))
 CONTROL_DIR = Path(os.environ.get("WAF_CONTROL", "/var/lib/waf-control"))
@@ -32,7 +33,10 @@ NOMAD_ADDR = os.environ.get("NOMAD_ADDR", "http://127.0.0.1:4646")
 NOMAD_JOB = os.environ.get("WAF_CROWDSEC_JOB", "crowdsec")
 CSCLI_BIN = os.environ.get("CROWDSEC_CSCLI", "")
 ALLOWLIST_NAME = os.environ.get("WAF_ALLOWLIST", "cso-operators")
-TRAEFIK_API = os.environ.get("TRAEFIK_API", "http://127.0.0.1:8080/api/http/routers")
+TRAEFIK_API = netguard.assert_loopback_http_url(
+    os.environ.get("TRAEFIK_API", "http://127.0.0.1:8080/api/http/routers"),
+    name="TRAEFIK_API",
+)
 APPSEC_PORT = int(os.environ.get("CROWDSEC_APPSEC_PORT", "7422"))
 
 

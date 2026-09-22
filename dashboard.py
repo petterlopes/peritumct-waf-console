@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import status as statusmod
+
 SOURCE = "crowdsec-lapi"
 NOTE = (
     "LAPI/AppSec events in this window. "
@@ -27,12 +29,7 @@ _FILTER_KEYS = ("ip", "path", "country", "action", "method")
 
 
 def _probe_ok(code: Any) -> bool:
-    """2xx/3xx = healthy origin probe (redirects on GET / are expected)."""
-    try:
-        c = int(code)
-    except (TypeError, ValueError):
-        return False
-    return 200 <= c < 400
+    return statusmod.http_status_ok(code)
 
 
 def _unwrap(raw: Any) -> str:

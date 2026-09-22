@@ -14,6 +14,8 @@ waf-console 127.0.0.1:18990   stdlib HTTP
 Modules:
 
 - `app.py` — HTTP API and static UI
+- `status.py` — version + HTTP probe health semantics
+- `netguard.py` — loopback URL / probe IP validation + TTL cache
 - `control.py` — policy CRUD, allowlists, SIGHUP
 - `catalog.py` — site inventory from JSON/env (no hardcoded production hosts)
 - `static/locales/en.json` — default strings

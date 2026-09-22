@@ -12,10 +12,12 @@ import re
 import socket
 import ssl
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,7 +27,9 @@ import catalog as catalog_mod
 import correlate
 import dashboard as dashmod
 import ga
+import netguard
 import routes as routemod
+import status as statusmod
 
 BIND = os.environ.get("WAF_BIND", "127.0.0.1")
 PORT = int(os.environ.get("WAF_PORT", "18990"))
@@ -33,11 +37,39 @@ CREDS_PATH = Path(os.environ.get("CROWDSEC_CREDS", "/etc/crowdsec/local_api_cred
 PROFILES_PATH = Path(os.environ.get("CROWDSEC_PROFILES", "/etc/crowdsec/profiles.yaml"))
 BOUNCER_KEY_PATH = Path(os.environ.get("CROWDSEC_BOUNCER_KEY", "/run/lapi_key"))
 CONFIG_ROOT = Path(os.environ.get("CROWDSEC_CONFIG", "/etc/crowdsec"))
-METRICS_URL = os.environ.get("CROWDSEC_METRICS", "http://127.0.0.1:6060/metrics")
+METRICS_URL = netguard.assert_loopback_http_url(
+    os.environ.get("CROWDSEC_METRICS", "http://127.0.0.1:6060/metrics"),
+    name="CROWDSEC_METRICS",
+)
 STATIC = Path(__file__).resolve().parent / "static"
-TOKEN = {"value": None, "exp": 0.0}
-PUBLIC_IP = os.environ.get("PUBLIC_IP", "")
+TOKEN = {"value": None, "exp": 0.0, "url": None}
+_TOKEN_LOCK = threading.Lock()
+PUBLIC_IP = netguard.assert_probe_server(os.environ.get("PUBLIC_IP", ""), name="PUBLIC_IP")
+PROBE_CACHE_TTL = float(netguard.env_int("WAF_PROBE_CACHE_TTL", 20, minimum=0, maximum=300))
+METRICS_CACHE_TTL = float(netguard.env_int("WAF_METRICS_CACHE_TTL", 10, minimum=0, maximum=120))
+PROBE_WORKERS = netguard.env_int("WAF_PROBE_WORKERS", 8, minimum=1, maximum=32)
+_CACHE = netguard.TtlCache()
 LOCAL_ORIGINS = {"crowdsec", "cscli", "console", "cscli-import"}
+SECURITY_HEADERS = (
+    ("Cache-Control", "no-store"),
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "SAMEORIGIN"),
+    ("Referrer-Policy", "no-referrer"),
+    ("Permissions-Policy", "geolocation=(), microphone=(), camera=()"),
+    ("X-Robots-Tag", "noindex, nofollow"),
+)
+HTML_CSP = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'self'; "
+    "img-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline'; "
+    "script-src 'self'; "
+    "connect-src 'self'; "
+    "object-src 'none'"
+)
+http_status_ok = statusmod.http_status_ok
 COUNTRY_CENTROID = {
     "AD": (42.5, 1.5), "AE": (23.4, 53.8), "AF": (33.9, 67.7), "AL": (41.2, 20.2),
     "AM": (40.1, 45.0), "AO": (-11.2, 17.9), "AR": (-38.4, -63.6), "AT": (47.5, 14.6),
@@ -95,15 +127,19 @@ def read_text(path: Path) -> str:
 
 def lapi_login() -> str:
     now = time.time()
-    if TOKEN["value"] and TOKEN["exp"] > now + 30:
-        return TOKEN["value"]
+    with _TOKEN_LOCK:
+        if TOKEN["value"] and TOKEN["exp"] > now + 30:
+            return TOKEN["value"]
     creds = parse_simple_yaml(CREDS_PATH)
-    url = creds.get("url") or os.environ.get("CROWDSEC_LAPI", "http://127.0.0.1:18080")
+    url = netguard.assert_loopback_http_url(
+        creds.get("url") or os.environ.get("CROWDSEC_LAPI", "http://127.0.0.1:18080"),
+        name="CROWDSEC_LAPI",
+    )
     login = creds.get("login") or creds.get("machine_id") or ""
     password = creds.get("password") or ""
     body = json.dumps({"machine_id": login, "password": password}).encode()
     req = urllib.request.Request(
-        url.rstrip("/") + "/v1/watchers/login",
+        url + "/v1/watchers/login",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -113,9 +149,10 @@ def lapi_login() -> str:
     token = payload.get("token") or payload.get("code")
     if not token:
         raise RuntimeError("LAPI login returned no token")
-    TOKEN["value"] = token
-    TOKEN["exp"] = now + 8 * 60
-    TOKEN["url"] = url.rstrip("/")
+    with _TOKEN_LOCK:
+        TOKEN["value"] = token
+        TOKEN["exp"] = now + 8 * 60
+        TOKEN["url"] = url
     return token
 
 
@@ -130,7 +167,10 @@ def lapi_bouncer(path: str, query: dict | None = None):
     if not key:
         raise RuntimeError("bouncer key missing")
     creds = parse_simple_yaml(CREDS_PATH)
-    base = (creds.get("url") or os.environ.get("CROWDSEC_LAPI", "http://127.0.0.1:18080")).rstrip("/")
+    base = netguard.assert_loopback_http_url(
+        creds.get("url") or os.environ.get("CROWDSEC_LAPI", "http://127.0.0.1:18080"),
+        name="CROWDSEC_LAPI",
+    )
     qs = ("?" + urllib.parse.urlencode(query, doseq=True)) if query else ""
     req = urllib.request.Request(
         base + path + qs,
@@ -144,7 +184,8 @@ def lapi_bouncer(path: str, query: dict | None = None):
 
 def lapi(method: str, path: str, query: dict | None = None, body: dict | None = None):
     token = lapi_login()
-    base = TOKEN.get("url") or "http://127.0.0.1:18080"
+    with _TOKEN_LOCK:
+        base = TOKEN.get("url") or "http://127.0.0.1:18080"
     qs = ("?" + urllib.parse.urlencode(query, doseq=True)) if query else ""
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(
@@ -166,7 +207,8 @@ def lapi(method: str, path: str, query: dict | None = None, body: dict | None = 
             except json.JSONDecodeError:
                 return {"raw": raw.decode("utf-8", "replace"), "status": resp.status}
     except urllib.error.HTTPError as exc:
-        TOKEN["value"] = None
+        with _TOKEN_LOCK:
+            TOKEN["value"] = None
         detail = exc.read().decode("utf-8", "replace")[:800]
         raise RuntimeError(f"LAPI {exc.code} {path}: {detail}") from exc
 
@@ -203,11 +245,16 @@ def http_text(url: str, timeout: float = 4.0) -> tuple[int, str]:
 
 
 def http_probe(host: str, server: str) -> dict:
+    try:
+        host = netguard.sanitize_hostname(host)
+        server = netguard.assert_probe_server(server, name="probe_server") or server
+    except ValueError as exc:
+        return {"host": host, "via": server, "status": 0, "error": str(exc)}
     ctx = ssl._create_unverified_context()
     try:
         sock = ctx.wrap_socket(socket.create_connection((server, 443), timeout=8), server_hostname=host)
         sock.sendall(
-            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: waf-console/1.0.16\r\n"
+            f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: {statusmod.APP_NAME}\r\n"
             f"Accept-Encoding: identity\r\nConnection: close\r\n\r\n".encode()
         )
         data = b""
@@ -229,13 +276,24 @@ def http_probe(host: str, server: str) -> dict:
         return {"host": host, "via": server, "status": 0, "error": str(exc)}
 
 
-def http_status_ok(code) -> bool:
-    """Operator-healthy probe: 2xx success or 3xx redirect on GET /."""
-    try:
-        c = int(code)
-    except (TypeError, ValueError):
-        return False
-    return 200 <= c < 400
+def probe_hosts(hosts: list[str], server: str) -> list[dict]:
+    """Parallel TLS probes with short TTL cache (dashboard/domains refresh)."""
+    key = ("probe", server, tuple(hosts))
+    hit = _CACHE.get(key)
+    if hit is not None:
+        return hit
+    results: list[dict] = []
+    if not hosts:
+        return results
+    workers = min(PROBE_WORKERS, max(1, len(hosts)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(http_probe, host, server): host for host in hosts}
+        by_host = {}
+        for fut in as_completed(futures):
+            by_host[futures[fut]] = fut.result()
+        results = [by_host[h] for h in hosts]
+    _CACHE.set(key, results, PROBE_CACHE_TTL)
+    return results
 
 
 def engine_status() -> dict:
@@ -251,8 +309,13 @@ def engine_status() -> dict:
         "include_large_uploads": bool(re.search(r"INCLUDE_LARGE_UPLOADS\s*[:=]\s*(1|true|yes)", acquis, re.I)),
         "creds_present": CREDS_PATH.is_file(),
         "bouncer_key_present": bool(bouncer_key()),
-        "version": "waf-console/1.0.16",
+        "version": statusmod.APP_NAME,
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
+        "tuning": {
+            "probe_cache_ttl": PROBE_CACHE_TTL,
+            "metrics_cache_ttl": METRICS_CACHE_TTL,
+            "probe_workers": PROBE_WORKERS,
+        },
     }
 
 
@@ -540,11 +603,17 @@ def build_allowlists() -> dict:
 
 
 def scrape_metrics() -> dict:
+    hit = _CACHE.get("metrics")
+    if hit is not None:
+        return hit
     status, text = http_text(METRICS_URL)
     if status != 200:
-        return {"ok": False, "status": status, "error": text[:300], "listen": "127.0.0.1:6060"}
+        result = {"ok": False, "status": status, "error": text[:300], "listen": "127.0.0.1:6060"}
+        _CACHE.set("metrics", result, min(METRICS_CACHE_TTL, 5.0) if METRICS_CACHE_TTL else 0)
+        return result
     parsed = parse_prom(text)
     parsed.update({"ok": True, "status": 200, "listen": "127.0.0.1:6060"})
+    _CACHE.set("metrics", parsed, METRICS_CACHE_TTL)
     return parsed
 
 
@@ -612,10 +681,16 @@ def add_ban(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "waf-console/1.0.16"
+    server_version = statusmod.APP_NAME
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+
+    def _security_headers(self, *, content_type: str = "") -> None:
+        for key, value in SECURITY_HEADERS:
+            self.send_header(key, value)
+        if content_type.startswith("text/html"):
+            self.send_header("Content-Security-Policy", HTML_CSP)
 
     def _send(self, code: int, body, content_type="application/json; charset=utf-8"):
         if isinstance(body, (dict, list)):
@@ -627,10 +702,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("X-Robots-Tag", "noindex, nofollow")
+        self._security_headers(content_type=content_type)
         self.end_headers()
         self.wfile.write(raw)
 
@@ -641,19 +713,35 @@ class Handler(BaseHTTPRequestHandler):
             raw = body
         else:
             raw = str(body).encode()
+        safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", filename)[:80] or "download.bin"
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Content-Disposition", 'attachment; filename="%s"' % filename)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("X-Robots-Tag", "noindex, nofollow")
+        self.send_header("Content-Disposition", 'attachment; filename="%s"' % safe_name)
+        self._security_headers(content_type=content_type)
         self.end_headers()
         self.wfile.write(raw)
 
     def _json_error(self, code: int, message: str):
         self._send(code, {"ok": False, "error": message})
+
+    def _mutation_guard(self) -> str | None:
+        """Reject cross-site mutation attempts when Origin disagrees with Host."""
+        host_hdr = (self.headers.get("Host") or "").split(",")[0].strip().lower()
+        host_only = host_hdr.split(":")[0]
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            return None
+        parsed = urllib.parse.urlparse(origin)
+        if parsed.scheme not in ("http", "https"):
+            return "invalid origin"
+        origin_host = (parsed.hostname or "").lower()
+        if not origin_host:
+            return "invalid origin"
+        allowed = {host_only, "127.0.0.1", "localhost", "::1"}
+        if origin_host not in allowed:
+            return "origin mismatch"
+        return None
 
     def _correlation_payload(self) -> dict:
         alerts = fetch_alerts(80)
@@ -758,14 +846,22 @@ class Handler(BaseHTTPRequestHandler):
         self._json_error(404, "not found")
 
     def do_POST(self):
+        guard = self._mutation_guard()
+        if guard:
+            return self._json_error(403, guard)
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype and ctype not in ("application/json", "text/json"):
+            return self._json_error(415, "unsupported media type")
         length = int(self.headers.get("Content-Length") or "0")
-        if length > 32768:
+        if length < 0 or length > 32768:
             return self._json_error(413, "payload too large")
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw.decode() or "{}")
         except json.JSONDecodeError:
             return self._json_error(400, "invalid json")
+        if not isinstance(payload, dict):
+            return self._json_error(400, "json object required")
         path = self._route_path()
         if path == "/api/decisions/delete":
             ip = str(payload.get("ip") or "").strip()
@@ -893,7 +989,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             err = str(exc)
         hosts = catalog_mod.in_scope_hosts()
-        domains = [http_probe(h, "127.0.0.1") for h in hosts]
+        domains = probe_hosts(hosts, "127.0.0.1")
         ok_hosts = sum(1 for d in domains if http_status_ok(d.get("status")))
         return self._send(
             200,
@@ -929,7 +1025,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json_error(502, str(exc))
         decisions, _err = fetch_local_decisions()
         hosts = catalog_mod.in_scope_hosts()
-        origin = [http_probe(h, "127.0.0.1") for h in hosts]
+        origin = probe_hosts(hosts, "127.0.0.1")
         try:
             mx = scrape_metrics()
         except Exception:
@@ -974,8 +1070,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _domains(self):
         hosts = catalog_mod.in_scope_hosts()
-        origin = [http_probe(h, "127.0.0.1") for h in hosts]
-        public = [http_probe(h, PUBLIC_IP) for h in hosts] if PUBLIC_IP else []
+        origin = probe_hosts(hosts, "127.0.0.1")
+        public = probe_hosts(hosts, PUBLIC_IP) if PUBLIC_IP else []
         return self._send(200, {"ok": True, "origin": origin, "public": public})
 
     def _engine(self):
@@ -1006,8 +1102,12 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     if BIND not in ("127.0.0.1", "::1"):
         raise SystemExit("WAF_BIND must be loopback")
+    # Fail closed on misconfigured outbound URLs before accepting traffic.
+    netguard.assert_loopback_http_url(METRICS_URL, name="CROWDSEC_METRICS")
+    if PUBLIC_IP:
+        netguard.assert_probe_server(PUBLIC_IP, name="PUBLIC_IP")
     httpd = ThreadingHTTPServer((BIND, PORT), Handler)
-    print(f"waf-console listening http://{BIND}:{PORT}", flush=True)
+    print(f"{statusmod.APP_NAME} listening http://{BIND}:{PORT}", flush=True)
     httpd.serve_forever()
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.17 — 2026-09-22
+
+- Design: shared `status.py` (version + HTTP healthy) and `netguard.py` (loopback URL / probe IP / TTL cache)
+- Hardening: LAPI/metrics/Traefik URLs must be loopback; `PUBLIC_IP` must be a literal IP; Host/SNI sanitized
+- Hardening: security headers (Referrer-Policy, Permissions-Policy, CSP on HTML); Origin check on POST; JSON-only mutations
+- Tuning: parallel domain probes (`WAF_PROBE_WORKERS`) with TTL cache (`WAF_PROBE_CACHE_TTL`, `WAF_METRICS_CACHE_TTL`)
+- Thread-safe LAPI token cache; Bandit coverage expanded to routes/dashboard/status/netguard
+
 ## 1.0.16 — 2026-09-22
 
 - Domains health cards: HTTP status colors by class (2xx green, 3xx cyan, 4xx orange, 5xx/error red)

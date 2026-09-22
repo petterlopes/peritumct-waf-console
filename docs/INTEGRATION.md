@@ -83,8 +83,11 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_ALLOWLIST` | `cso-operators` | cscli allowlist name |
 | `WAF_APPSEC_NAME` | `peritumct/site-filters` | AppSec config name written by the console |
 | `WAF_APPSEC_FILE` | `peritumct-site-filters.yaml` | File under `appsec-configs/` |
-| `PUBLIC_IP` | empty | Origin vs public HTTP probes (optional) |
-| `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map |
+| `PUBLIC_IP` | empty | Optional public probe target (**literal IP only**, no DNS) |
+| `WAF_PROBE_CACHE_TTL` | `20` | Seconds to cache domain TLS probes (0 disables) |
+| `WAF_METRICS_CACHE_TTL` | `10` | Seconds to cache Prometheus scrape |
+| `WAF_PROBE_WORKERS` | `8` | Parallel TLS probe workers (1–32) |
+| `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map (**loopback only**) |
 | `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |
 | `WAF_MISP_KEY` | empty | Stored for operators; **never** returned in JSON |
 | `WAF_THEHIVE_URL` | empty | If set, TheHive connector status is `configured` (file export only) |
