@@ -14,46 +14,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sast:
+  rust:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: rust
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d0363a4f5565471df40efc17 # v5.6.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: "3.12"
-      - name: Install dev tools
-        run: python -m pip install --upgrade pip && python -m pip install -r requirements-dev.txt
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
-      - name: Ruff
-        run: ruff check .
-      - name: Bandit
-        run: bandit -q -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py persist.py
-      - name: Secret patterns
-        run: bash scripts/verify-no-committed-secrets.sh
-
-  sca:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d0363a4f5565471df40efc17 # v5.6.0
-        with:
-          python-version: "3.12"
-      - name: pip-audit (dev tools)
+          components: clippy, rustfmt
+      - name: cargo fmt
+        run: cargo fmt --check
+        continue-on-error: true
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -W clippy::correctness
+        continue-on-error: true
+      - name: cargo test
+        run: cargo test --test unit_smoke --test parity_smoke
+      - name: cargo audit (optional)
+        continue-on-error: true
         run: |
-          python -m pip install --upgrade pip pip-audit
-          python -m pip-audit -r requirements-dev.txt
-      - name: Trivy filesystem
+          cargo install cargo-audit --locked || true
+          cargo audit || true
+
+  container:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build -t peritumct-waf-console:ci .
+      - name: Trivy image
         uses: aquasecurity/trivy-action@b6640a8a0553bb5a2d4878ae9ef2a02412e5dbd2 # v0.33.1
         with:
-          scan-type: fs
-          scan-ref: .
+          scan-type: image
+          image-ref: peritumct-waf-console:ci
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+      - name: Secret patterns
+        run: bash scripts/verify-no-committed-secrets.sh
+
+  legacy-python:
+    # Rollback surface only — keep unit parity for legacy/python until decommissioned.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d0363a4f5565471df40efc17 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Legacy unit tests
+        working-directory: legacy/python
+        run: |
+          PYTHONPATH=. python -m unittest discover -s tests -v

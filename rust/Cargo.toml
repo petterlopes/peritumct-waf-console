@@ -1,0 +1,53 @@
+[package]
+name = "waf-console"
+version = "2.0.0"
+edition = "2021"
+description = "CrowdSec WAF operator console (Rust) — loopback API + static UI"
+license = "MIT"
+readme = "../README.md"
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", default-features = false, features = [
+  "http1",
+  "tokio",
+  "json",
+  "query",
+  "original-uri",
+  "form",
+] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+ipnet = "2"
+once_cell = "1"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "sync", "time", "signal"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["set-header"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+url = "2"
+native-tls = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "waf-console"
+path = "src/main.rs"
+
+[lib]
+name = "waf_console"
+path = "src/lib.rs"
+
+[[test]]
+name = "unit_smoke"
+path = "tests/unit_smoke.rs"
+
+[[test]]
+name = "parity_smoke"
+path = "tests/parity_smoke.rs"

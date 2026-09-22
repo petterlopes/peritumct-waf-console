@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0 — 2026-09-22
+
+- **Runtime: Rust** (`rust/` crate `waf-console`) replaces the stdlib Python server as the primary binary
+- API + static UI parity: same routes, loopback SSRF posture, rate limits, Origin guard, Domains palette, control/routes/correlate/dashboard
+- Multi-stage Dockerfile (Rust builder → slim runtime); `WAF_APP_VERSION` default `2.0.0`
+- Engine health reports `runtime: "rust"`
+- Python sources moved to `legacy/python/` (rollback only)
+- CI: `cargo test` smoke + container build/Trivy; legacy Python tests on workflow_dispatch
+
 ## 1.0.18 — 2026-09-22
 
 - Design: shared `persist.py` (atomic writes + audit); catalog host sanitization via `netguard`

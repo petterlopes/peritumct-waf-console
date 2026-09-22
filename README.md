@@ -8,7 +8,7 @@ Open-source operator console for a local [CrowdSec](https://github.com/crowdsecu
 - License (this console): [MIT](LICENSE) · Copyright (c) 2026 PeritumCT
 - CrowdSec engine: [MIT](https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file) — see [NOTICE](NOTICE)
 - Pin tested with CrowdSec **v1.8.1**: https://github.com/crowdsecurity/crowdsec/releases#release-v1.8.1
-- **Current console:** 1.0.18+
+- **Current console:** 2.0.0 (Rust) · legacy Python under `legacy/python/`
 
 Portuguese README: [README.pt-BR.md](README.pt-BR.md) · Docs index: [docs/README.md](docs/README.md)
 
@@ -26,7 +26,16 @@ Validated in production-like environments with:
 Full matrix, topologies, and acceptance checklist:
 **[docs/HOMOLOGATION.md](docs/HOMOLOGATION.md)** · [docs/HOMOLOGATION.pt-BR.md](docs/HOMOLOGATION.pt-BR.md)
 
-## What it does
+## Runtime (Rust)
+
+Primary binary: `rust/` → container `CMD ["/app/waf-console"]`.
+
+```bash
+cd rust && cargo test --test unit_smoke --test parity_smoke
+docker compose -f docker-compose.example.yml build
+```
+
+Python 1.x lives in `legacy/python/` for emergency rollback only.
 
 - Dark operator UI (dashboard, overview, map, decisions, alerts, OWASP / ATT&CK correlation, hub rules, metrics, Domains)
 - **Policy CRUD** per FQDN: allow a path, skip a named in-band rule, or bypass AppSec for a host

@@ -13,3 +13,6 @@ audit.jsonl
 site-filters.json
 sites.json
 !examples/sites.json
+rust/target/
+**/target/
+
