@@ -6,16 +6,24 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:2.0.0
+    image: peritumct-waf-console:2.0.1
     container_name: waf-console
     network_mode: host
     environment:
       WAF_BIND: "127.0.0.1"
       WAF_PORT: "18990"
       WAF_STATIC: /app/static
-      WAF_APP_VERSION: "2.0.0"
+      WAF_APP_VERSION: "2.0.1"
       WAF_APP_PRODUCT: "waf-console"
-      RUST_LOG: "info"
+      RUST_LOG: "warn"
+      TOKIO_WORKER_THREADS: "4"
+      WAF_PROBE_CACHE_TTL: "30"
+      WAF_METRICS_CACHE_TTL: "12"
+      WAF_ALERTS_CACHE_TTL: "10"
+      WAF_ENGINE_CACHE_TTL: "5"
+      WAF_PROBE_WORKERS: "12"
+      WAF_POST_RATE: "90"
+      WAF_HEAVY_GET_RATE: "60"
       CROWDSEC_CREDS: /etc/crowdsec/local_api_credentials.yaml
       CROWDSEC_PROFILES: /etc/crowdsec/profiles.yaml
       CROWDSEC_CONFIG: /etc/crowdsec
@@ -25,13 +33,6 @@ services:
       WAF_CONTROL: /var/lib/waf-control
       WAF_SITES_FILE: /var/lib/waf-control/sites.json
       WAF_ALLOWLIST: cso-operators
-      WAF_PROBE_CACHE_TTL: "20"
-      WAF_METRICS_CACHE_TTL: "10"
-      WAF_ALERTS_CACHE_TTL: "8"
-      WAF_ENGINE_CACHE_TTL: "3"
-      WAF_PROBE_WORKERS: "8"
-      WAF_POST_RATE: "60"
-      WAF_HEAVY_GET_RATE: "40"
       # Never set WAF_TRAEFIK_DYNAMIC_DIR. The console must not write Traefik files.
       PUBLIC_IP: ""
       # Optional edge marker + great-circle routes (operator-supplied, not GeoIP):

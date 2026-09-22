@@ -1,0 +1,16 @@
+.git
+**/target/
+rust/target/
+legacy/
+docs/
+tests/
+.github/
+*.md
+!README.md
+.env
+docker-compose.yml
+__pycache__/
+.venv/
+ruff.toml
+requirements-dev.txt
+scripts/peek-*.py

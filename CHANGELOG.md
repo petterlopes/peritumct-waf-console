@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.1 — 2026-09-22
+
+- Fix: Docker builder pin `rust:1.88-bookworm` (lockfile needs rustc ≥1.88; 1.85 broke production builds)
+- Tuning: probe workers 12, longer TTLs, POST/heavy rates 90/60, `RUST_LOG=warn`, `TOKIO_WORKER_THREADS=4`
+- Hardening: non-root default image user, `.dockerignore`, sparse crates index, release strip
+- Deploy: auto-update health wait extended for first Rust compile; prefer `runtime: rust` in health gate
+
 ## 2.0.0 — 2026-09-22
 
 - **Runtime: Rust** (`rust/` crate `waf-console`) replaces the stdlib Python server as the primary binary
