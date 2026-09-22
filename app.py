@@ -171,8 +171,11 @@ def lapi_login() -> str:
 
 
 def bouncer_key() -> str:
-    if BOUNCER_KEY_PATH.is_file():
-        return BOUNCER_KEY_PATH.read_text(encoding="utf-8", errors="replace").strip()
+    try:
+        if BOUNCER_KEY_PATH.is_file():
+            return BOUNCER_KEY_PATH.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return ""
     return ""
 
 
