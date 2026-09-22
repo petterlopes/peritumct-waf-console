@@ -12,11 +12,11 @@ import json
 import os
 import re
 import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 import netguard
+import persist
 
 CONTROL_DIR = Path(os.environ.get("WAF_CONTROL", "/var/lib/waf-control"))
 STORE = CONTROL_DIR / "routes.json"
@@ -71,14 +71,11 @@ FORBIDDEN = (
 
 
 def _utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return persist.utc_now()
 
 
 def _audit(event: str, payload: dict) -> None:
-    CONTROL_DIR.mkdir(parents=True, exist_ok=True)
-    line = json.dumps({"ts": _utc(), "event": event, **payload}, ensure_ascii=False)
-    with (CONTROL_DIR / "audit.jsonl").open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    persist.audit(event, payload)
 
 
 def _reject(*parts: str) -> None:
@@ -109,10 +106,7 @@ def load_store() -> dict:
 
 
 def _save(store: dict) -> None:
-    CONTROL_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = STORE.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(store, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.replace(STORE)
+    persist.atomic_write_text(STORE, json.dumps(store, ensure_ascii=False, indent=2) + "\n")
 
 
 def _name(value: str) -> str:
@@ -228,7 +222,8 @@ def _id() -> str:
 def _fetch_json(url: str) -> list:
     try:
         with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
+            raw = netguard.read_limited(resp, 4_000_000)
+            data = json.loads(raw.decode() or "[]")
     except Exception:
         return []
     return data if isinstance(data, list) else []

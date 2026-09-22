@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.18 — 2026-09-22
+
+- Design: shared `persist.py` (atomic writes + audit); catalog host sanitization via `netguard`
+- Hardening: sliding-window rate limits (POST + heavy GET); bounded LAPI/Traefik/metrics reads; XSS escapes across Domains/Alerts/Decisions/Map/Policies UI
+- Hardening: static asset Cache-Control separate from API `no-store`; request timeouts; Content-Type on mutating fetch
+- Tuning: alert/engine status TTL caches (`WAF_ALERTS_CACHE_TTL`, `WAF_ENGINE_CACHE_TTL`); rate knobs `WAF_POST_RATE`, `WAF_HEAVY_GET_RATE`
+
 ## 1.0.17 — 2026-09-22
 
 - Design: shared `status.py` (version + HTTP healthy) and `netguard.py` (loopback URL / probe IP / TTL cache)

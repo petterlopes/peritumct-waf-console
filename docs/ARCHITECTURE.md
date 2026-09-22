@@ -15,7 +15,8 @@ Modules:
 
 - `app.py` — HTTP API and static UI
 - `status.py` — version + HTTP probe health semantics
-- `netguard.py` — loopback URL / probe IP validation + TTL cache
+- `netguard.py` — loopback URL / probe IP validation, TTL cache, rate limiter, bounded reads
+- `persist.py` — atomic file writes + shared audit log
 - `control.py` — policy CRUD, allowlists, SIGHUP
 - `catalog.py` — site inventory from JSON/env (no hardcoded production hosts)
 - `static/locales/en.json` — default strings

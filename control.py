@@ -19,6 +19,7 @@ from pathlib import Path
 
 import catalog as catalog_mod
 import netguard
+import persist
 
 CONFIG_ROOT = Path(os.environ.get("CROWDSEC_CONFIG", "/etc/crowdsec"))
 CONTROL_DIR = Path(os.environ.get("WAF_CONTROL", "/var/lib/waf-control"))
@@ -70,14 +71,11 @@ FORBIDDEN = (
 
 
 def _utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return persist.utc_now()
 
 
 def audit(event: str, payload: dict) -> None:
-    CONTROL_DIR.mkdir(parents=True, exist_ok=True)
-    line = json.dumps({"ts": _utc(), "event": event, **payload}, ensure_ascii=False)
-    with AUDIT_LOG.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    persist.audit(event, payload)
 
 
 def load_filters() -> dict:
@@ -94,10 +92,7 @@ def load_filters() -> dict:
 
 
 def save_filters(store: dict) -> None:
-    CONTROL_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = FILTERS_JSON.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(store, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.replace(FILTERS_JSON)
+    persist.atomic_write_text(FILTERS_JSON, json.dumps(store, ensure_ascii=False, indent=2) + "\n")
 
 
 def _reject_forbidden(*parts: str) -> None:
@@ -233,7 +228,7 @@ def ensure_acquis() -> bool:
     )
     if updated == text:
         updated = text.rstrip() + "\n  - " + APPSEC_NAME + "\n"
-    ACQUIS_PATH.write_text(updated, encoding="utf-8")
+    persist.atomic_write_text(ACQUIS_PATH, updated)
     return True
 
 
@@ -280,7 +275,7 @@ def apply_filters(store: dict) -> dict:
     yaml_text = render_yaml(store.get("items") or [])
     FILTERS_YAML.parent.mkdir(parents=True, exist_ok=True)
     previous = FILTERS_YAML.read_text(encoding="utf-8") if FILTERS_YAML.is_file() else ""
-    FILTERS_YAML.write_text(yaml_text, encoding="utf-8")
+    persist.atomic_write_text(FILTERS_YAML, yaml_text)
     acquis_changed = ensure_acquis()
     try:
         pids = sighup_crowdsec()
@@ -288,7 +283,7 @@ def apply_filters(store: dict) -> dict:
             raise RuntimeError("AppSec did not come back after HUP")
     except Exception:
         if previous:
-            FILTERS_YAML.write_text(previous, encoding="utf-8")
+            persist.atomic_write_text(FILTERS_YAML, previous)
             try:
                 sighup_crowdsec()
             except OSError:
@@ -491,7 +486,7 @@ def traefik_site_map() -> dict:
 
     try:
         with urllib.request.urlopen(TRAEFIK_API, timeout=5) as resp:
-            routers = json.loads(resp.read().decode())
+            routers = json.loads(netguard.read_limited(resp, 4_000_000).decode() or "[]")
     except Exception:
         routers = []
     by_host = {}

@@ -5,7 +5,7 @@
 | Tool | Scope |
 |------|--------|
 | Ruff | Python lint + common bug patterns (`app.py`, `control.py`, `catalog.py`) |
-| Bandit | Python security rules (`app.py`, `control.py`, `catalog.py`, `routes.py`, `dashboard.py`, `status.py`, `netguard.py`) |
+| Bandit | Python security rules (`app.py`, `control.py`, `catalog.py`, `routes.py`, `dashboard.py`, `status.py`, `netguard.py`, `persist.py`) |
 | unittest | Validators, catalog load, forbidden tokens |
 
 Runtime has **no PyPI dependencies**. SAST therefore focuses on first-party code.
@@ -26,7 +26,7 @@ The CrowdSec engine image (`crowdsecurity/crowdsec`) is operated **beside** this
 
 1. `python -m unittest`
 2. `ruff check .`
-3. `bandit -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py`
+3. `bandit -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py persist.py`
 4. `pip-audit -r requirements-dev.txt`
 5. Trivy filesystem
 6. `scripts/verify-no-committed-secrets.sh`

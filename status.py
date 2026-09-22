@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-APP_VERSION = "1.0.17"
+APP_VERSION = "1.0.18"
 APP_NAME = f"waf-console/{APP_VERSION}"
 
 

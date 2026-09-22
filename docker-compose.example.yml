@@ -6,7 +6,7 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:1.0.17
+    image: peritumct-waf-console:1.0.18
     container_name: waf-console
     network_mode: host
     environment:
@@ -23,7 +23,11 @@ services:
       WAF_ALLOWLIST: cso-operators
       WAF_PROBE_CACHE_TTL: "20"
       WAF_METRICS_CACHE_TTL: "10"
+      WAF_ALERTS_CACHE_TTL: "8"
+      WAF_ENGINE_CACHE_TTL: "3"
       WAF_PROBE_WORKERS: "8"
+      WAF_POST_RATE: "60"
+      WAF_HEAVY_GET_RATE: "40"
       # Never set WAF_TRAEFIK_DYNAMIC_DIR. The console must not write Traefik files.
       PUBLIC_IP: ""
       # Optional edge marker + great-circle routes (operator-supplied, not GeoIP):

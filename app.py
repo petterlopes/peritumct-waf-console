@@ -47,17 +47,31 @@ _TOKEN_LOCK = threading.Lock()
 PUBLIC_IP = netguard.assert_probe_server(os.environ.get("PUBLIC_IP", ""), name="PUBLIC_IP")
 PROBE_CACHE_TTL = float(netguard.env_int("WAF_PROBE_CACHE_TTL", 20, minimum=0, maximum=300))
 METRICS_CACHE_TTL = float(netguard.env_int("WAF_METRICS_CACHE_TTL", 10, minimum=0, maximum=120))
+ALERTS_CACHE_TTL = float(netguard.env_int("WAF_ALERTS_CACHE_TTL", 8, minimum=0, maximum=120))
+ENGINE_CACHE_TTL = float(netguard.env_int("WAF_ENGINE_CACHE_TTL", 3, minimum=0, maximum=60))
 PROBE_WORKERS = netguard.env_int("WAF_PROBE_WORKERS", 8, minimum=1, maximum=32)
+POST_RATE = netguard.env_int("WAF_POST_RATE", 60, minimum=5, maximum=600)
+HEAVY_GET_RATE = netguard.env_int("WAF_HEAVY_GET_RATE", 40, minimum=5, maximum=600)
 _CACHE = netguard.TtlCache()
+_POST_LIMITER = netguard.RateLimiter(POST_RATE, 60.0)
+_HEAVY_LIMITER = netguard.RateLimiter(HEAVY_GET_RATE, 60.0)
 LOCAL_ORIGINS = {"crowdsec", "cscli", "console", "cscli-import"}
-SECURITY_HEADERS = (
-    ("Cache-Control", "no-store"),
+SECURITY_HEADERS_BASE = (
     ("X-Content-Type-Options", "nosniff"),
     ("X-Frame-Options", "SAMEORIGIN"),
     ("Referrer-Policy", "no-referrer"),
     ("Permissions-Policy", "geolocation=(), microphone=(), camera=()"),
     ("X-Robots-Tag", "noindex, nofollow"),
 )
+HEAVY_GET_PATHS = frozenset({
+    "/api/dashboard",
+    "/api/coverage",
+    "/api/correlation",
+    "/api/correlation/stix",
+    "/api/correlation/misp",
+    "/api/correlation/thehive",
+    "/api/overview",
+})
 HTML_CSP = (
     "default-src 'self'; "
     "base-uri 'self'; "
@@ -145,7 +159,7 @@ def lapi_login() -> str:
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=12) as resp:
-        payload = json.loads(resp.read().decode())
+        payload = json.loads(netguard.read_limited(resp, 256_000).decode())
     token = payload.get("token") or payload.get("code")
     if not token:
         raise RuntimeError("LAPI login returned no token")
@@ -178,7 +192,7 @@ def lapi_bouncer(path: str, query: dict | None = None):
         method="GET",
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
-        raw = resp.read()
+        raw = netguard.read_limited(resp, 4_000_000)
         return json.loads(raw.decode() or "{}")
 
 
@@ -199,13 +213,13 @@ def lapi(method: str, path: str, query: dict | None = None, body: dict | None = 
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            raw = resp.read()
+            raw = netguard.read_limited(resp, 4_000_000)
             if not raw:
                 return {"ok": True, "status": resp.status}
             try:
                 return json.loads(raw.decode())
             except json.JSONDecodeError:
-                return {"raw": raw.decode("utf-8", "replace"), "status": resp.status}
+                return {"raw": raw.decode("utf-8", "replace")[:2000], "status": resp.status}
     except urllib.error.HTTPError as exc:
         with _TOKEN_LOCK:
             TOKEN["value"] = None
@@ -237,9 +251,9 @@ def http_text(url: str, timeout: float = 4.0) -> tuple[int, str]:
     req = urllib.request.Request(url, method="GET")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, resp.read().decode("utf-8", "replace")
+            return resp.status, netguard.read_limited(resp, 2_000_000).decode("utf-8", "replace")
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read().decode("utf-8", "replace")
+        return exc.code, netguard.read_limited(exc, 64_000).decode("utf-8", "replace")
     except Exception as exc:
         return 0, str(exc)
 
@@ -297,9 +311,12 @@ def probe_hosts(hosts: list[str], server: str) -> list[dict]:
 
 
 def engine_status() -> dict:
+    hit = _CACHE.get("engine_status")
+    if hit is not None:
+        return hit
     profiles = read_text(PROFILES_PATH)
     acquis = read_text(CONFIG_ROOT / "acquis.d" / "appsec.yaml")
-    return {
+    payload = {
         "lapi_listen": tcp_open("127.0.0.1", 18080),
         "appsec_listen": tcp_open("127.0.0.1", 7422),
         "metrics_listen": tcp_open("127.0.0.1", 6060),
@@ -314,9 +331,15 @@ def engine_status() -> dict:
         "tuning": {
             "probe_cache_ttl": PROBE_CACHE_TTL,
             "metrics_cache_ttl": METRICS_CACHE_TTL,
+            "alerts_cache_ttl": ALERTS_CACHE_TTL,
+            "engine_cache_ttl": ENGINE_CACHE_TTL,
             "probe_workers": PROBE_WORKERS,
+            "post_rate": POST_RATE,
+            "heavy_get_rate": HEAVY_GET_RATE,
         },
     }
+    _CACHE.set("engine_status", payload, ENGINE_CACHE_TTL)
+    return payload
 
 
 def flatten_decisions(payload):
@@ -493,8 +516,15 @@ def parse_prom(text: str) -> dict:
 
 
 def fetch_alerts(limit: int = 80) -> list:
+    limit = max(1, min(int(limit or 80), 500))
+    key = ("alerts", limit)
+    hit = _CACHE.get(key)
+    if hit is not None:
+        return hit
     data = lapi("GET", "/v1/alerts", query={"limit": limit}) or []
-    return data if isinstance(data, list) else []
+    items = data if isinstance(data, list) else []
+    _CACHE.set(key, items, ALERTS_CACHE_TTL)
+    return items
 
 
 def edge_point():
@@ -682,17 +712,22 @@ def add_ban(payload: dict) -> dict:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = statusmod.APP_NAME
+    timeout = 60
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
-    def _security_headers(self, *, content_type: str = "") -> None:
-        for key, value in SECURITY_HEADERS:
+    def _client_key(self) -> str:
+        return self.client_address[0] if self.client_address else "unknown"
+
+    def _security_headers(self, *, content_type: str = "", cacheable: bool = False) -> None:
+        self.send_header("Cache-Control", "public, max-age=120" if cacheable else "no-store")
+        for key, value in SECURITY_HEADERS_BASE:
             self.send_header(key, value)
         if content_type.startswith("text/html"):
             self.send_header("Content-Security-Policy", HTML_CSP)
 
-    def _send(self, code: int, body, content_type="application/json; charset=utf-8"):
+    def _send(self, code: int, body, content_type="application/json; charset=utf-8", *, cacheable: bool = False):
         if isinstance(body, (dict, list)):
             raw = json.dumps(body, ensure_ascii=False).encode()
         elif isinstance(body, bytes):
@@ -702,7 +737,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
-        self._security_headers(content_type=content_type)
+        self._security_headers(content_type=content_type, cacheable=cacheable)
         self.end_headers()
         self.wfile.write(raw)
 
@@ -718,12 +753,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Content-Disposition", 'attachment; filename="%s"' % safe_name)
-        self._security_headers(content_type=content_type)
+        self._security_headers(content_type=content_type, cacheable=False)
         self.end_headers()
         self.wfile.write(raw)
 
     def _json_error(self, code: int, message: str):
         self._send(code, {"ok": False, "error": message})
+
+    def _rate_limit(self, limiter: netguard.RateLimiter, kind: str) -> bool:
+        if limiter.allow(self._client_key()):
+            return True
+        self._json_error(429, f"rate limit exceeded ({kind})")
+        return False
 
     def _mutation_guard(self) -> str | None:
         """Reject cross-site mutation attempts when Origin disagrees with Host."""
@@ -761,26 +802,29 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", "/waf/")
             self.send_header("Content-Length", "0")
+            self._security_headers(cacheable=False)
             self.end_headers()
             return
         path = self._route_path()
+        if path in HEAVY_GET_PATHS and not self._rate_limit(_HEAVY_LIMITER, "heavy-get"):
+            return
         if path in ("/", "/index.html"):
             return self._static("index.html", "text/html; charset=utf-8")
         if path.startswith("/static/"):
             name = path.split("/")[-1]
             ctype = "text/css" if name.endswith(".css") else "application/javascript" if name.endswith(".js") else "application/octet-stream"
-            return self._static(name, ctype)
+            return self._static(name, ctype, cacheable=True)
         if path in ("/app.css", "/app.js", "/i18n.js", "/world.js", "/map.js"):
             ctype = "text/css" if path.endswith(".css") else "application/javascript"
-            return self._static(path.lstrip("/"), ctype)
+            return self._static(path.lstrip("/"), ctype, cacheable=True)
         if path in ("/logo.svg", "/logo.png"):
             ctype = "image/svg+xml" if path.endswith(".svg") else "image/png"
-            return self._static(path.lstrip("/"), ctype)
+            return self._static(path.lstrip("/"), ctype, cacheable=True)
         if path.startswith("/locales/"):
             name = path.split("/")[-1]
             if name not in ("en.json", "pt-BR.json"):
                 return self._json_error(404, "not found")
-            return self._static("locales/" + name, "application/json; charset=utf-8")
+            return self._static("locales/" + name, "application/json; charset=utf-8", cacheable=True)
         if path == "/api/health":
             eng = engine_status()
             return self._send(200, {"ok": True, **eng})
@@ -846,6 +890,8 @@ class Handler(BaseHTTPRequestHandler):
         self._json_error(404, "not found")
 
     def do_POST(self):
+        if not self._rate_limit(_POST_LIMITER, "post"):
+            return
         guard = self._mutation_guard()
         if guard:
             return self._json_error(403, guard)
@@ -969,13 +1015,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json_error(502, str(exc))
         self._json_error(404, "not found")
 
-    def _static(self, name: str, content_type: str):
+    def _static(self, name: str, content_type: str, *, cacheable: bool = False):
         target = (STATIC / name).resolve()
         if STATIC not in target.parents and target != STATIC:
             return self._json_error(403, "forbidden")
         if not target.is_file():
             return self._json_error(404, "asset missing")
-        self._send(200, target.read_bytes(), content_type)
+        self._send(200, target.read_bytes(), content_type, cacheable=cacheable)
 
     def _overview(self):
         eng = engine_status()
@@ -1107,6 +1153,8 @@ def main():
     if PUBLIC_IP:
         netguard.assert_probe_server(PUBLIC_IP, name="PUBLIC_IP")
     httpd = ThreadingHTTPServer((BIND, PORT), Handler)
+    httpd.daemon_threads = True
+    httpd.timeout = 60
     print(f"{statusmod.APP_NAME} listening http://{BIND}:{PORT}", flush=True)
     httpd.serve_forever()
 

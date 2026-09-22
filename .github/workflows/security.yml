@@ -31,7 +31,7 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Bandit
-        run: bandit -q -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py
+        run: bandit -q -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py persist.py
       - name: Secret patterns
         run: bash scripts/verify-no-committed-secrets.sh
 

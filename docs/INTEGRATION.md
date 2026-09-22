@@ -87,6 +87,10 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_PROBE_CACHE_TTL` | `20` | Seconds to cache domain TLS probes (0 disables) |
 | `WAF_METRICS_CACHE_TTL` | `10` | Seconds to cache Prometheus scrape |
 | `WAF_PROBE_WORKERS` | `8` | Parallel TLS probe workers (1–32) |
+| `WAF_ALERTS_CACHE_TTL` | `8` | Seconds to cache LAPI alerts |
+| `WAF_ENGINE_CACHE_TTL` | `3` | Seconds to cache engine TCP/listen probes |
+| `WAF_POST_RATE` | `60` | Max POST mutations per client IP / minute |
+| `WAF_HEAVY_GET_RATE` | `40` | Max heavy GETs (dashboard/coverage/correlation/overview) per IP / minute |
 | `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map (**loopback only**) |
 | `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |
 | `WAF_MISP_KEY` | empty | Stored for operators; **never** returned in JSON |

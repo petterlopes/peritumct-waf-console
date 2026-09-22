@@ -105,3 +105,45 @@ def env_int(name: str, default: int, *, minimum: int = 0, maximum: int = 10_000)
     except ValueError:
         return default
     return max(minimum, min(maximum, value))
+
+
+def read_limited(resp, max_bytes: int = 2_000_000) -> bytes:
+    """Bound urllib response bodies to avoid memory exhaustion from local services."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = resp.read(65536)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise RuntimeError("response exceeds size limit")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+class RateLimiter:
+    """Sliding-window rate limiter (per-key, in-process)."""
+
+    def __init__(self, limit: int, window_sec: float) -> None:
+        self.limit = max(1, int(limit))
+        self.window = max(0.5, float(window_sec))
+        self._hits: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, key: str) -> bool:
+        now = time.monotonic()
+        cutoff = now - self.window
+        with self._lock:
+            bucket = [t for t in self._hits.get(key, []) if t > cutoff]
+            if len(bucket) >= self.limit:
+                self._hits[key] = bucket
+                return False
+            bucket.append(now)
+            self._hits[key] = bucket
+            # opportunistic prune of idle keys
+            if len(self._hits) > 4096:
+                stale = [k for k, v in self._hits.items() if not v or v[-1] < cutoff]
+                for k in stale[:512]:
+                    self._hits.pop(k, None)
+            return True

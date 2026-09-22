@@ -35,8 +35,35 @@ class NetguardTests(unittest.TestCase):
         cache = netguard.TtlCache()
         cache.set("k", "v", 0.05)
         self.assertEqual(cache.get("k"), "v")
-        time.sleep(0.06)
+        time.sleep(0.2)
         self.assertIsNone(cache.get("k"))
+
+    def test_rate_limiter(self):
+        lim = netguard.RateLimiter(3, 60.0)
+        self.assertTrue(lim.allow("a"))
+        self.assertTrue(lim.allow("a"))
+        self.assertTrue(lim.allow("a"))
+        self.assertFalse(lim.allow("a"))
+        self.assertTrue(lim.allow("b"))
+
+    def test_read_limited(self):
+        class Fake:
+            def __init__(self, data: bytes):
+                self._data = data
+                self._pos = 0
+
+            def read(self, n: int = -1):
+                if self._pos >= len(self._data):
+                    return b""
+                if n < 0:
+                    n = len(self._data) - self._pos
+                chunk = self._data[self._pos : self._pos + n]
+                self._pos += len(chunk)
+                return chunk
+
+        self.assertEqual(netguard.read_limited(Fake(b"abc"), 10), b"abc")
+        with self.assertRaises(RuntimeError):
+            netguard.read_limited(Fake(b"x" * 100), 50)
 
     def test_version_and_status(self):
         self.assertTrue(statusmod.APP_NAME.startswith("waf-console/"))

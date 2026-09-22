@@ -81,7 +81,12 @@ function fmtTime(ts) {
 }
 
 async function api(path, opts) {
-  const res = await fetch(BASE + path, Object.assign({ headers: { Accept: "application/json" } }, opts))
+  opts = opts || {}
+  const headers = Object.assign({ Accept: "application/json" }, opts.headers || {})
+  if (opts.body != null && !headers["Content-Type"] && !headers["content-type"]) {
+    headers["Content-Type"] = "application/json"
+  }
+  const res = await fetch(BASE + path, Object.assign({}, opts, { headers }))
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || res.statusText)
   return data
@@ -254,7 +259,7 @@ function renderFilterChip() {
 
 function stack(items) {
   if (!items.length) return "<p class='hint'>" + t("empty", "no data") + "</p>"
-  return items.map((it) => `<div class="stack-row"><span>${it.l}</span><b>${it.r}</b></div>`).join("")
+  return items.map((it) => `<div class="stack-row"><span>${esc(it.l)}</span><b>${esc(it.r)}</b></div>`).join("")
 }
 
 function renderOverview(data) {
@@ -307,7 +312,7 @@ function renderOverview(data) {
   })
   const pad = ips.slice(0, 9)
   while (pad.length < 9) pad.push("—")
-  $("ipPad").innerHTML = pad.map((ip) => `<div class="ip-chip">${ip}</div>`).join("")
+  $("ipPad").innerHTML = pad.map((ip) => `<div class="ip-chip">${esc(ip)}</div>`).join("")
   const map = data.map || (cache.coverage && cache.coverage.map) || { points: [] }
   renderMap($("mapMini"), map, { interactive: false })
   if ($("mapMiniNote")) $("mapMiniNote").textContent = t("map.note")
@@ -326,7 +331,7 @@ function renderMapView(payload) {
     const name = (typeof countryMeta === "function" ? countryMeta(c.cn).name : c.cn)
     const gaBit = (c.ga_sessions != null) ? (" · " + t("map.ga", "GA") + " " + c.ga_sessions) : ""
     const vclass = c.ga_verdict ? " ga-" + c.ga_verdict : ""
-    return `<button type="button" class="stack-row country-row${active}${vclass}" data-iso="${c.cn}"><span>${name}</span><b>${c.count}${gaBit}</b></button>`
+    return `<button type="button" class="stack-row country-row${active}${vclass}" data-iso="${esc(c.cn)}"><span>${esc(name)}</span><b>${esc(c.count)}${esc(gaBit)}</b></button>`
   }).join("") || `<p class="hint">${t("empty", "no data")}</p>`
   $("mapCountries").onclick = (ev) => {
     const btn = ev.target.closest("[data-iso]")
@@ -334,7 +339,7 @@ function renderMapView(payload) {
   }
   const points = (map.points || []).filter((p) => geoMatch(p.cn))
   $("mapPoints").innerHTML = points.map((p) =>
-    `<tr><td><code>${p.ip || ""}</code></td><td>${p.cn || ""}</td><td>${p.as_name || ""}</td><td>${p.scenario || ""}</td><td>${p.approx ? t("centroide") : "LAPI"}</td></tr>`
+    `<tr><td><code>${esc(p.ip || "")}</code></td><td>${esc(p.cn || "")}</td><td>${esc(p.as_name || "")}</td><td>${esc(p.scenario || "")}</td><td>${p.approx ? t("centroide") : "LAPI"}</td></tr>`
   ).join("") || `<tr><td colspan="5">${t("no_geo")}</td></tr>`
 }
 
@@ -346,12 +351,12 @@ function renderRules(rules) {
   const policy = rules.policy || {}
   $("rulesPolicy").innerHTML = Object.entries(policy)
     .filter(([k]) => k !== "note")
-    .map(([k, v]) => `<span class="pill ${v ? "on" : "off"}">${k}: ${Array.isArray(v) ? v.join(", ") : v}</span>`)
+    .map(([k, v]) => `<span class="pill ${v ? "on" : "off"}">${esc(k)}: ${esc(Array.isArray(v) ? v.join(", ") : v)}</span>`)
     .join("")
   const hub = rules.hub || {}
   $("hubPanels").innerHTML = Object.entries(hub).map(([name, info]) => {
-    const items = (info.items || []).slice(0, 8).map((i) => `<div class="stack-row"><span>${i}</span></div>`).join("")
-    return `<article class="card host-tile"><div class="card-head"><h2>${name}</h2><span class="tag">${info.count || 0}</span></div>${items || "<p class='hint'>" + t("empty") + "</p>"}</article>`
+    const items = (info.items || []).slice(0, 8).map((i) => `<div class="stack-row"><span>${esc(i)}</span></div>`).join("")
+    return `<article class="card host-tile"><div class="card-head"><h2>${esc(name)}</h2><span class="tag">${esc(info.count || 0)}</span></div>${items || "<p class='hint'>" + t("empty") + "</p>"}</article>`
   }).join("")
 }
 
@@ -374,13 +379,13 @@ function renderSites(payload) {
   $("sitesBody").innerHTML = sites.map((s) => {
     const n = (s.filters || []).length
     const b = (s.traefik && s.traefik.bouncer) || s.bouncer
-    return `<tr><td>${s.host}</td><td>${s.kind}</td><td>${s.chain}</td><td class="${b ? "ok" : "bad"}">${b ? "on" : "off"}</td><td>${n}</td></tr>`
+    return `<tr><td>${esc(s.host)}</td><td>${esc(s.kind)}</td><td>${esc(s.chain)}</td><td class="${b ? "ok" : "bad"}">${b ? "on" : "off"}</td><td>${n}</td></tr>`
   }).join("")
   const oos = payload.out_of_scope || {}
   $("sitesOut").textContent = t("sites.out") + Object.entries(oos).map(([h, why]) => h + " (" + why + ")").join(" · ")
   const sel = $("filterHost")
   if (sel && !sel.dataset.ready) {
-    sel.innerHTML = sites.map((s) => `<option value="${s.host}">${s.host}</option>`).join("")
+    sel.innerHTML = sites.map((s) => `<option value="${esc(s.host)}">${esc(s.host)}</option>`).join("")
     sel.dataset.ready = "1"
   }
   const all = []
@@ -391,10 +396,10 @@ function renderSites(payload) {
     const extra = f.path_prefix || f.rule || (f.action === "bypass_host" ? "*" : "")
     const on = f.enabled === false ? "off" : "on"
     const name = f.name || f.id
-    return `<tr><td>${name}</td><td>${f.host}</td><td>${f.action} <span class="tag">${on}</span></td><td><code>${extra}</code></td><td>${f.reason || ""}</td><td>
-      <button data-fedit="${f.id}">${t("policy.edit_btn")}</button>
-      <button data-ftoggle="${f.id}" data-fen="${f.enabled === false}">${f.enabled === false ? "On" : "Off"}</button>
-      <button data-fdel="${f.id}">${t("policy.delete_btn")}</button>
+    return `<tr><td>${esc(name)}</td><td>${esc(f.host)}</td><td>${esc(f.action)} <span class="tag">${on}</span></td><td><code>${esc(extra)}</code></td><td>${esc(f.reason || "")}</td><td>
+      <button data-fedit="${esc(f.id)}">${t("policy.edit_btn")}</button>
+      <button data-ftoggle="${esc(f.id)}" data-fen="${f.enabled === false}">${f.enabled === false ? "On" : "Off"}</button>
+      <button data-fdel="${esc(f.id)}">${t("policy.delete_btn")}</button>
     </td></tr>`
   }).join("") || `<tr><td colspan="6">${t("policy.empty")}</td></tr>`
 }
@@ -460,7 +465,7 @@ function renderMetrics(mx) {
   $("mxOrigins").innerHTML = stack(Object.entries(mx.decisions_by_origin || {}).map(([k, v]) => ({ l: k, r: Math.round(v) })))
   $("mxAlerts").innerHTML = stack((mx.top_alerts || []).map((a) => ({ l: a.reason, r: Math.round(a.count) })))
   $("metricsBody").innerHTML = Object.entries(mx.gauges || {}).map(([k, v]) =>
-    `<tr><td>${k}</td><td>${Math.round(v)}</td></tr>`
+    `<tr><td>${esc(k)}</td><td>${Math.round(v)}</td></tr>`
   ).join("") || `<tr><td colspan="2">${t("mx.empty")}</td></tr>`
 }
 
@@ -474,12 +479,12 @@ function renderDecisions(items) {
   $("decisionsBody").innerHTML = filtered.map((d) => {
     const ip = d.value || d.ip || "—"
     return `<tr>
-      <td><code>${ip}</code></td>
-      <td>${d.origin || "—"}</td>
-      <td>${d.type || d.action || "ban"}</td>
-      <td>${d.scenario || d.reason || "—"}</td>
-      <td>${d.until || d.duration || "—"}</td>
-      <td>${ip !== "—" ? `<button data-unban="${ip}">Unban</button>` : ""}</td>
+      <td><code>${esc(ip)}</code></td>
+      <td>${esc(d.origin || "—")}</td>
+      <td>${esc(d.type || d.action || "ban")}</td>
+      <td>${esc(d.scenario || d.reason || "—")}</td>
+      <td>${esc(d.until || d.duration || "—")}</td>
+      <td>${ip !== "—" ? `<button data-unban="${esc(ip)}">Unban</button>` : ""}</td>
     </tr>`
   }).join("") || `<tr><td colspan="6">${t("decisions.empty")}</td></tr>`
 }
@@ -487,11 +492,11 @@ function renderDecisions(items) {
 function renderAlerts(items) {
   const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a), countryOf(a), hostOf(a)].join(" ")) && geoMatch(countryOf(a)) && hostMatch(a))
   $("alertsBody").innerHTML = filtered.map((a) => `<tr>
-    <td>${fmtTime(a.created_at)}</td>
-    <td><code>${ipOf(a)}</code></td>
-    <td>${countryOf(a) || "—"}</td>
-    <td>${scenarioOf(a)}</td>
-    <td>${a.capacity || (a.decisions ? a.decisions.length : "—")}</td>
+    <td>${esc(fmtTime(a.created_at))}</td>
+    <td><code>${esc(ipOf(a))}</code></td>
+    <td>${esc(countryOf(a) || "—")}</td>
+    <td>${esc(scenarioOf(a))}</td>
+    <td>${esc(a.capacity || (a.decisions ? a.decisions.length : "—"))}</td>
   </tr>`).join("") || `<tr><td colspan="5">${t("alerts.empty")}</td></tr>`
 }
 
