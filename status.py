@@ -2,10 +2,12 @@
 """Shared HTTP status semantics for Domains / dashboard KPIs."""
 from __future__ import annotations
 
+import os
 from typing import Any
 
-APP_VERSION = "1.0.18"
-APP_NAME = f"waf-console/{APP_VERSION}"
+APP_VERSION = os.environ.get("WAF_APP_VERSION", "1.0.18")
+APP_PRODUCT = os.environ.get("WAF_APP_PRODUCT", "waf-console")
+APP_NAME = f"{APP_PRODUCT}/{APP_VERSION}"
 
 
 def http_status_ok(code: Any) -> bool:

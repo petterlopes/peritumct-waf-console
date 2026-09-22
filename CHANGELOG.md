@@ -6,6 +6,7 @@
 - Hardening: sliding-window rate limits (POST + heavy GET); bounded LAPI/Traefik/metrics reads; XSS escapes across Domains/Alerts/Decisions/Map/Policies UI
 - Hardening: static asset Cache-Control separate from API `no-store`; request timeouts; Content-Type on mutating fetch
 - Tuning: alert/engine status TTL caches (`WAF_ALERTS_CACHE_TTL`, `WAF_ENGINE_CACHE_TTL`); rate knobs `WAF_POST_RATE`, `WAF_HEAVY_GET_RATE`
+- Branding: `WAF_APP_PRODUCT` / `WAF_APP_VERSION` env (default `waf-console/1.0.18`) for multi-site packs
 
 ## 1.0.17 — 2026-09-22
 
