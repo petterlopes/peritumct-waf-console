@@ -17,4 +17,4 @@
 | [CREDITS.md](CREDITS.md) · [PRIVACY.md](PRIVACY.md) · [TERMS.md](TERMS.md) | EN | Legal |
 | [CREDITS.pt-BR.md](CREDITS.pt-BR.md) · [PRIVACY.pt-BR.md](PRIVACY.pt-BR.md) · [TERMS.pt-BR.md](TERMS.pt-BR.md) | PT-BR | Legal |
 
-**CrowdSec engine pin:** v1.8.1 · **Console:** 2.0.3 (Rust **1.98.1**, GPL-3.0-or-later)
+**CrowdSec engine pin:** v1.8.1 · **Console:** 2.0.4 (Rust **1.98.1**, GPL-3.0-or-later)

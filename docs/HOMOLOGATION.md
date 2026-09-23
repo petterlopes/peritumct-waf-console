@@ -5,12 +5,12 @@ Homologation means: install, health, Domains probes, decisions/alerts, policy CR
 and reverse-proxy anti-lockout (`/waf` **without** CrowdSec bouncer) were exercised on
 real infrastructure — not only unit tests.
 
-**Current pin:** console **2.0.3** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
+**Current pin:** console **2.0.4** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
 See [TOOLCHAIN.md](TOOLCHAIN.md).
 
 | Runtime / platform | Role | Homologated | Notes |
 |--------------------|------|-------------|-------|
-| **Docker Compose** | Console container (`network_mode: host`) | Yes | `docker-compose.example.yml`; `USER nobody` overridden with `user: "0:0"` when SIGHUP/`cscli` need host privileges |
+| **Docker Compose** | Console container (`network_mode: host`) | Yes | `docker-compose.example.yml` admin shape: `pid: host` + `user: "0:0"` + host CrowdSec/cscli mounts; image default USER is non-root `waf` |
 | **Podman Compose** | Console + CrowdSec engine on Rocky Linux | Yes | rocky-212 host network; systemd oneshot + timer auto-update |
 | **Kubernetes** | Traefik IngressRoute / Middleware CRDs | Yes | `/waf` → host Endpoints; middlewares `crowdsec-bouncer` (AppSec) vs `admin-netbird-only` (console) |
 | **Cilium** | Cluster networking / LB to Traefik | Yes | NetBird → host :443 → Cilium LB → Traefik; LAPI/AppSec reached via node InternalIP |
@@ -103,7 +103,7 @@ Operators can force: `FORCE=1 /usr/local/bin/update-waf-console.sh`
 | Env | Default | Use |
 |-----|---------|-----|
 | `WAF_APP_PRODUCT` | `waf-console` | Product name in `Server` / health `version` |
-| `WAF_APP_VERSION` | `2.0.3` | Semver string (Rust runtime) |
+| `WAF_APP_VERSION` | `2.0.4` | Semver string (Rust runtime) |
 
 Site packs (e.g. Nomad `waf-admin`) set `WAF_APP_PRODUCT=waf-admin` while tracking this repo.
 Console license: **GPL-3.0-or-later**; CrowdSec engine remains MIT. Builder pin: **rustc 1.98.1**.

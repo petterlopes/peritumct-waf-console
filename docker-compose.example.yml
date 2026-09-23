@@ -1,25 +1,33 @@
-# Example compose. Bind loopback only. Do not publish LAPI/AppSec.
-# Copy examples/sites.json to the control volume before first start.
+# Example compose — operator admin replica (policies + allowlists).
 #
-# Policy apply (SIGHUP CrowdSec) needs pid: host and a writable AppSec config
-# mount. Drop pid: host if this replica is read-only.
+# Required for policy apply (SIGHUP CrowdSec) and cscli allowlists:
+#   pid: host · user: "0:0" · host CrowdSec bind mounts · host cscli binary
+# Image default USER is non-root (uid 65532); override as below for admin.
+#
+# Read-only dashboard replica: omit pid/user overrides and mount configs :ro.
+# Never publish LAPI/AppSec/console. Never set WAF_TRAEFIK_DYNAMIC_DIR.
+#
+# Copy examples/sites.json → /var/lib/waf-control/sites.json before first start.
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:2.0.3
+    image: peritumct-waf-console:2.0.4
     container_name: waf-console
     network_mode: host
+    pid: host
+    user: "0:0"
     environment:
       WAF_BIND: "127.0.0.1"
       WAF_PORT: "18990"
       WAF_STATIC: /app/static
-      WAF_APP_VERSION: "2.0.3"
+      WAF_APP_VERSION: "2.0.4"
       WAF_APP_PRODUCT: "waf-console"
       RUST_LOG: "warn"
       TOKIO_WORKER_THREADS: "4"
       WAF_PROBE_CACHE_TTL: "30"
       WAF_METRICS_CACHE_TTL: "12"
       WAF_ALERTS_CACHE_TTL: "10"
+      WAF_ALERTS_LIMIT: "500"
       WAF_ENGINE_CACHE_TTL: "5"
       WAF_PROBE_WORKERS: "12"
       WAF_POST_RATE: "90"
@@ -29,37 +37,23 @@ services:
       CROWDSEC_CONFIG: /etc/crowdsec
       CROWDSEC_BOUNCER_KEY: /run/lapi_key
       CROWDSEC_METRICS: http://127.0.0.1:6060/metrics
-      CROWDSEC_CSCLI: /usr/bin/cscli
+      # Prefer remapped LAPI when Traefik occupies :8080
+      CROWDSEC_LAPI: http://127.0.0.1:18080
+      # Host cscli (image does not ship CrowdSec). Adjust path for the host OS.
+      CROWDSEC_CSCLI: /usr/local/bin/cscli-host
       WAF_CONTROL: /var/lib/waf-control
       WAF_SITES_FILE: /var/lib/waf-control/sites.json
       WAF_ALLOWLIST: cso-operators
-      # Never set WAF_TRAEFIK_DYNAMIC_DIR. The console must not write Traefik files.
       PUBLIC_IP: ""
-      # Optional edge marker + great-circle routes (operator-supplied, not GeoIP):
-      # WAF_EDGE_LAT: "49.452"
-      # WAF_EDGE_LON: "11.077"
-      # WAF_EDGE_LABEL: "edge"
-      # Optional CTI file-export status (never pushed; tokens never returned in JSON):
-      # WAF_MISP_URL: "https://misp.example.invalid"
-      # WAF_MISP_KEY: ""
-      # WAF_THEHIVE_URL: "https://thehive.example.invalid"
-      # WAF_THEHIVE_KEY: ""
-      # WAF_OPENCTI_URL: "https://opencti.example.invalid"
-      # WAF_OPENCTI_TOKEN: ""
-      # WAF_GA_SNAPSHOT_FILE: /var/lib/waf-control/ga-snapshot.json
-      # Never set GA measurement in the console process. Never gtag on /waf.
     volumes:
-      - crowdsec-config:/etc/crowdsec:ro
-      - crowdsec-appsec:/etc/crowdsec/appsec-configs
-      - crowdsec-acquis:/etc/crowdsec/acquis.d
-      - waf-control:/var/lib/waf-control
-      - ./examples/lapi_key.example:/run/lapi_key:ro
+      # Host CrowdSec tree (replace paths for your install)
+      - /etc/crowdsec:/etc/crowdsec:ro
+      - /etc/crowdsec/appsec-configs:/etc/crowdsec/appsec-configs
+      - /etc/crowdsec/acquis.d:/etc/crowdsec/acquis.d
+      - /var/lib/waf-control:/var/lib/waf-control
+      - /run/lapi_key:/run/lapi_key:ro
+      - /usr/bin/cscli:/usr/local/bin/cscli-host:ro
     restart: unless-stopped
     read_only: true
     tmpfs:
       - /tmp
-volumes:
-  crowdsec-config:
-  crowdsec-appsec:
-  crowdsec-acquis:
-  waf-control:

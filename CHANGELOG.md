@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.4 — 2026-09-23
+
+- CSO clarity: `fail_closed` is documented as **policy metadata** (`fail_closed_mode=cso_enforced`, not mutable) — UI no longer treats it as a live TCP probe
+- Dashboard 24h: LAPI fetch uses `since=24h`, client-side window filter, honest `sample` / `window_label` when the fetch limit caps coverage; `WAF_ALERTS_LIMIT` (default 500)
+- Compose: `docker-compose.example.yml` ships admin defaults (`pid: host`, `user: "0:0"`, host CrowdSec + cscli mounts, `WAF_ALLOWLIST`)
+
 ## 2.0.3 — 2026-09-22
 
 - Toolchain: pin **rustc 1.98.1** (stable 2026-09-03 — vtable miscompilation fix); MSRV `1.98.1`; Docker `rust:1.98.1-bookworm`

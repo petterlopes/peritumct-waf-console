@@ -4,7 +4,7 @@ Default language of this document: **English**. Portuguese: [INTEGRATION.pt-BR.m
 
 This console operates a **local** CrowdSec Security Engine. It does not replace Traefik, Nomad, or the CrowdSec cloud console.
 
-**Console runtime:** Rust **2.0.3** (MSRV / Docker builder **1.98.1**, GPL-3.0-or-later) — see [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
+**Console runtime:** Rust **2.0.4** (MSRV / Docker builder **1.98.1**, GPL-3.0-or-later) — see [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
 Legacy Python 1.x under `legacy/python/` is rollback-only.
 
 Tested with CrowdSec **v1.8.1** (`crowdsecurity/crowdsec:v1.8.1`, commit `909b515`).
@@ -102,7 +102,8 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_POST_RATE` | `60` | Max POST mutations per client IP / minute |
 | `WAF_HEAVY_GET_RATE` | `40` | Max heavy GETs (dashboard/coverage/correlation/overview) per IP / minute |
 | `WAF_APP_PRODUCT` | `waf-console` | Product name in health `version` / `Server` header |
-| `WAF_APP_VERSION` | `2.0.3` | Semver string paired with product (Rust console) |
+| `WAF_APP_VERSION` | `2.0.4` | Semver string paired with product (Rust console) |
+| `WAF_ALERTS_LIMIT` | `500` | Max alerts per LAPI fetch for dashboard/map (1–500); 24h window uses `since=24h` + client filter |
 | `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map (**loopback only**) |
 | `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |
 | `WAF_MISP_KEY` | empty | Stored for operators; **never** returned in JSON |
@@ -168,21 +169,25 @@ Creating/editing/deleting policies writes YAML and sends **SIGHUP** to processes
 
 That requires:
 
-- `pid: host` (or running the console on the host network namespace of CrowdSec)
-- permission to signal the CrowdSec PID (often uid 0)
+- `pid: host` (or running the console on the host PID namespace of CrowdSec)
+- permission to signal the CrowdSec PID — production overlays use `user: "0:0"` because the image defaults to non-root (`waf` uid 65532), not `nobody`
 - writable `appsec-configs/` and `acquis.d/`
+- host `cscli` via `CROWDSEC_CSCLI` (or `NOMAD_BIN` alloc exec) for allowlist add/remove
+- `WAF_ALLOWLIST` (default `cso-operators`)
 
-If you only need read-only health/map/decisions, omit `pid: host` and do not mount AppSec config read-write. Ban/unban still work via LAPI; allowlist writes need `CROWDSEC_CSCLI`.
+If you only need read-only health/map/decisions, omit `pid: host` / root override and mount AppSec config read-only. Ban/unban still work via LAPI; allowlist writes need `cscli` or Nomad exec.
+
+`docker-compose.example.yml` ships the **admin** shape (pid/user/host mounts). Drop those for a read-mostly replica.
 
 ## 8. Docker
 
 ```bash
 cp docker-compose.example.yml docker-compose.yml
-# point volumes at your CrowdSec config/data
+# edit host bind mounts to your CrowdSec paths / cscli binary
 docker compose up -d --build
 ```
 
-Override `user: "0:0"` and `pid: host` when this replica must SIGHUP CrowdSec. The image defaults to `nobody` for a read-mostly replica.
+Dashboard 24h views use LAPI `since=24h` plus a client-side window filter. When the fetch hits `WAF_ALERTS_LIMIT` (default 500), `sample.capped` and `window_label` disclose incomplete coverage.
 
 ## 9. systemd
 

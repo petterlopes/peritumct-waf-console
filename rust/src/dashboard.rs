@@ -578,6 +578,15 @@ fn hour_bucket(dt: Option<DateTime<Utc>>, now: DateTime<Utc>) -> Option<usize> {
     Some((23 - hours) as usize)
 }
 
+/// True when `dt` falls inside the last `hours` hours (inclusive). Missing timestamps are excluded.
+pub fn within_window_hours(dt: Option<DateTime<Utc>>, now: DateTime<Utc>, hours: i64) -> bool {
+    let Some(dt) = dt else {
+        return false;
+    };
+    let age = (now - dt).num_seconds();
+    age >= 0 && age <= hours.saturating_mul(3600)
+}
+
 fn hour_series(rows: &[Map<String, Value>], now: DateTime<Utc>) -> Value {
     let local = now.with_timezone(&*GMT3);
     let mut events = vec![0i64; 24];
@@ -760,6 +769,14 @@ fn action_items(
 ) -> Vec<Value> {
     let mut items = vec![
         json!({
+            "id": "fail-closed-cso",
+            "severity": "Low",
+            "title": "Fail-closed is CSO-enforced (always ON; console cannot disable it)",
+            "tags": ["Operator policy", "Edge"],
+            "kind": "policy",
+            "view": "engine",
+        }),
+        json!({
             "id": "bot-off",
             "severity": "Low",
             "title": "Bot detection/challenge stays OFF",
@@ -776,18 +793,24 @@ fn action_items(
             "view": "engine",
         }),
     ];
-    if !engine
+    // Drift signal only: engine payload must keep fail_closed=true + cso_enforced metadata.
+    let fail_closed_ok = engine
         .get("fail_closed")
         .and_then(|v| v.as_bool())
         .unwrap_or(false)
-    {
+        && engine
+            .get("fail_closed_mutable")
+            .and_then(|v| v.as_bool())
+            .map(|m| !m)
+            .unwrap_or(true);
+    if !fail_closed_ok {
         items.insert(
             0,
             json!({
-                "id": "fail-open",
+                "id": "fail-open-drift",
                 "severity": "High",
-                "title": "Fail-closed is not reported by the engine",
-                "tags": ["Engine"],
+                "title": "Fail-closed policy metadata drifted — investigate edge bouncer config",
+                "tags": ["Engine", "Policy"],
                 "kind": "insight",
                 "view": "engine",
             }),
@@ -997,6 +1020,8 @@ pub struct BuildOptions<'a> {
     pub filters: Option<&'a HashMap<String, String>>,
     pub appsec: Option<&'a Map<String, Value>>,
     pub edge: Option<&'a Map<String, Value>>,
+    /// LAPI fetch limit used by the caller (for honest `sample.capped` reporting).
+    pub alerts_fetch_limit: Option<usize>,
 }
 
 pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
@@ -1065,6 +1090,9 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
         .collect();
 
     let mut rows: Vec<Map<String, Value>> = Vec::new();
+    let fetched = alerts.len();
+    let fetch_limit = opts.alerts_fetch_limit.unwrap_or(500).max(1);
+    let mut skipped_out_of_window = 0usize;
     for alert in alerts {
         let Some(alert_obj) = alert.as_object() else {
             continue;
@@ -1075,6 +1103,11 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
             continue;
         }
         let dt = parse_time(&alert_map);
+        // KPIs claim a 24h window — drop events outside it (or without a parseable time).
+        if !within_window_hours(dt, now, 24) {
+            skipped_out_of_window += 1;
+            continue;
+        }
         let src = alert_map
             .get("source")
             .and_then(|v| v.as_object())
@@ -1348,12 +1381,36 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
         .map(|(k, v)| (k, Value::String(v)))
         .collect();
 
+    let sample_capped = fetched >= fetch_limit;
+    let window_label = if sample_capped {
+        format!(
+            "Last 24 hours · GMT-3 · sample of newest {fetch_limit} alerts (may be incomplete)"
+        )
+    } else {
+        "Last 24 hours · GMT-3".to_string()
+    };
+    let note = if sample_capped {
+        format!(
+            "{NOTE} Alert sample hit the fetch limit ({fetch_limit}); raise WAF_ALERTS_LIMIT (max 500) or expect incomplete 24h KPIs under load."
+        )
+    } else {
+        NOTE.to_string()
+    };
+
     json!({
         "ok": true,
         "source": SOURCE,
-        "note": NOTE,
+        "note": note,
         "window": "24h",
-        "window_label": "Last 24 hours · GMT-3",
+        "window_label": window_label,
+        "sample": {
+            "fetched": fetched,
+            "in_window": rows_mut.len(),
+            "skipped_out_of_window": skipped_out_of_window,
+            "fetch_limit": fetch_limit,
+            "capped": sample_capped,
+            "lapi_since": "24h",
+        },
         "host": host,
         "hosts": hosts,
         "filters": Value::Object(filter_out),

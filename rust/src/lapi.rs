@@ -209,6 +209,11 @@ pub fn metrics_cache_ttl() -> f64 {
 pub fn alerts_cache_ttl() -> f64 {
     netguard::env_int("WAF_ALERTS_CACHE_TTL", 8, 0, 120) as f64
 }
+
+/// Max alerts pulled from LAPI per request (CrowdSec clamps server-side; we cap at 500).
+pub fn alerts_fetch_limit(default: usize) -> usize {
+    netguard::env_int("WAF_ALERTS_LIMIT", default as i64, 1, 500) as usize
+}
 pub fn engine_cache_ttl() -> f64 {
     netguard::env_int("WAF_ENGINE_CACHE_TTL", 3, 0, 60) as f64
 }
@@ -719,7 +724,11 @@ pub fn engine_status() -> Value {
         "metrics_listen": tcp_open("127.0.0.1", 6060, 1.2),
         "oob_log_only": profiles.contains("appsec_outofband_log_only"),
         "crs_inband_present": profiles.contains("crs-inband") && profiles.contains("name: crs-inband"),
+        // CSO policy constant (Traefik bouncer fail-closed) — not a live LAPI/TCP probe.
         "fail_closed": true,
+        "fail_closed_mode": "cso_enforced",
+        "fail_closed_source": "traefik_bouncer_policy",
+        "fail_closed_mutable": false,
         "include_large_uploads": include_large,
         "creds_present": creds_path().is_file(),
         "bouncer_key_present": !bouncer_key().is_empty(),
@@ -737,6 +746,7 @@ pub fn engine_status() -> Value {
             "probe_cache_ttl": probe_cache_ttl(),
             "metrics_cache_ttl": metrics_cache_ttl(),
             "alerts_cache_ttl": alerts_cache_ttl(),
+            "alerts_fetch_limit": alerts_fetch_limit(500),
             "engine_cache_ttl": engine_cache_ttl(),
             "probe_workers": probe_workers(),
             "post_rate": netguard::env_int("WAF_POST_RATE", 60, 5, 600),
@@ -1083,15 +1093,29 @@ pub fn parse_prom(text: &str) -> Value {
     })
 }
 
+/// Fetch newest alerts from LAPI. When `since` is set (e.g. `"24h"`), CrowdSec
+/// filters server-side; the console still applies a client-side 24h window in
+/// `dashboard::build` so KPIs never claim more than the time window.
 pub fn fetch_alerts(limit: usize) -> Result<Vec<Value>> {
+    fetch_alerts_window(limit, Some("24h"))
+}
+
+pub fn fetch_alerts_window(limit: usize, since: Option<&str>) -> Result<Vec<Value>> {
     let limit = limit.clamp(1, 500);
-    let key = format!("alerts|{limit}");
+    let since_key = since.unwrap_or("-");
+    let key = format!("alerts|{limit}|{since_key}");
     if let Some(hit) = CACHE.get(&key) {
         if let Some(arr) = hit.as_array() {
             return Ok(arr.clone());
         }
     }
-    let data = lapi("GET", "/v1/alerts", &[("limit", limit.to_string())], None)?;
+    let mut query: Vec<(&str, String)> = vec![("limit", limit.to_string())];
+    if let Some(s) = since {
+        if !s.is_empty() {
+            query.push(("since", s.to_string()));
+        }
+    }
+    let data = lapi("GET", "/v1/alerts", &query, None)?;
     let items = data.as_array().cloned().unwrap_or_default();
     CACHE.set(&key, Value::Array(items.clone()), alerts_cache_ttl());
     Ok(items)
@@ -1390,7 +1414,7 @@ pub fn add_ban(payload: &Map<String, Value>) -> Result<Value> {
 }
 
 pub fn correlation_payload() -> Result<Value> {
-    let alerts = fetch_alerts(80)?;
+    let alerts = fetch_alerts(alerts_fetch_limit(200))?;
     let hub = control::hub_appsec_rules();
     let corr = correlate::correlate(&alerts, Some(&hub));
     let map = build_map(&alerts);
@@ -1419,7 +1443,7 @@ pub fn overview() -> Value {
         }
         (d, _) => decisions = d,
     }
-    match fetch_alerts(40) {
+    match fetch_alerts(alerts_fetch_limit(100)) {
         Ok(a) => alerts = a,
         Err(e) => err = Some(e.to_string()),
     }
@@ -1457,7 +1481,8 @@ pub fn overview() -> Value {
 }
 
 pub fn dashboard_payload(host: &str, filters: HashMap<String, String>) -> Result<Value> {
-    let alerts = fetch_alerts(200)?;
+    let fetch_limit = alerts_fetch_limit(500);
+    let alerts = fetch_alerts(fetch_limit)?;
     let (decisions, _) = fetch_local_decisions();
     let hosts = catalog::in_scope_hosts();
     let origin = probe_hosts(&hosts, "127.0.0.1");
@@ -1481,6 +1506,7 @@ pub fn dashboard_payload(host: &str, filters: HashMap<String, String>) -> Result
         filters: Some(&filters),
         appsec: appsec_map.as_ref(),
         edge: edge_map,
+        alerts_fetch_limit: Some(fetch_limit),
     };
     Ok(dashboard::build(&alerts, opts))
 }

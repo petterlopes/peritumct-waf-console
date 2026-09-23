@@ -417,7 +417,7 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
                 "items": lapi::prefer_local_decisions(&data, 120),
             }))
         }
-        "/api/alerts" => match lapi::fetch_alerts(80) {
+        "/api/alerts" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
             Ok(data) => {
                 let mut items = Vec::new();
                 for mut alert in data {
@@ -469,7 +469,7 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
             );
             json_ok(Value::Object(eng))
         }
-        "/api/map" => match lapi::fetch_alerts(80) {
+        "/api/map" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
             Ok(alerts) => {
                 let map = lapi::build_map(&alerts);
                 let mut out = map.as_object().cloned().unwrap_or_default();
@@ -493,7 +493,7 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
         }
         "/api/metrics" => json_ok(lapi::scrape_metrics()),
         "/api/coverage" => {
-            let alerts = lapi::fetch_alerts(80).unwrap_or_default();
+            let alerts = lapi::fetch_alerts(lapi::alerts_fetch_limit(200)).unwrap_or_default();
             let hub = control::hub_appsec_rules();
             let corr = correlate::correlate(&alerts, Some(&hub));
             let map = lapi::build_map(&alerts);

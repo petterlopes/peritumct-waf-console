@@ -278,12 +278,16 @@ function renderOverview(data) {
   const rows = [
     ["LAPI", eng.lapi_listen],
     ["AppSec", eng.appsec_listen],
-    ["OOB log-only", eng.oob_log_only],
-    ["Fail-closed", eng.fail_closed]
+    ["OOB log-only", eng.oob_log_only]
   ]
+  const failClosedLock = t(
+    "engine.fail_closed_lock",
+    "Fail-closed · CSO enforced (always ON)"
+  )
   $("engineProgress").innerHTML = rows.map(([n, ok]) =>
     `<li>${n}<div class="bar"><span style="width:${ok ? 100 : 18}%"></span></div></li>`
-  ).join("")
+  ).join("") +
+    `<li class="policy-lock" title="${esc(t("engine.fail_closed_hint", "Traefik bouncer policy — not a live probe; console cannot disable it"))}">${esc(failClosedLock)}<div class="bar"><span style="width:100%"></span></div></li>`
   $("edgeMap").innerHTML = (data.domains || []).map((d) => {
     const code = httpStatusCode(d.status)
     const label = code || d.error || "fail"
@@ -1032,7 +1036,14 @@ function rowKey(r, i) {
 function renderDashboard(data) {
   data = data || cache.dashboard || {}
   if ($("dashNote")) $("dashNote").textContent = data.note || t("dash.note", "LAPI/AppSec events in this window.")
-  if ($("dashWindow")) $("dashWindow").textContent = data.window_label || t("dash.window", "Last 24 hours · GMT-3")
+  if ($("dashWindow")) {
+    let label = data.window_label || t("dash.window", "Last 24 hours · GMT-3")
+    const sample = data.sample || {}
+    if (sample.capped && !/sample of newest/i.test(label)) {
+      label = label + " · " + t("dash.sample_capped", "sample capped (may be incomplete)")
+    }
+    $("dashWindow").textContent = label
+  }
   fillDomainFilter(data.hosts || [])
   renderDashChips()
   const k = data.kpis || {}

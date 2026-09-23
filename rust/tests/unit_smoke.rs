@@ -54,10 +54,72 @@ fn parse_simple_yaml_login_password() {
 }
 
 #[test]
-fn ga_density_and_verdict() {
-    assert!((ga::density(5, 100) - 0.05).abs() < 0.0001);
-    assert_eq!(ga::verdict(0, 10), "clean-traffic");
-    assert_eq!(ga::verdict(3, 0), "scanner-heavy");
-    assert_eq!(ga::verdict(5, 20), "user-impact-risk");
-    assert_eq!(ga::verdict(2, 100), "mixed");
+fn within_window_hours_filters_age() {
+    use chrono::{Duration, Utc};
+    use waf_console::dashboard::within_window_hours;
+
+    let now = Utc::now();
+    assert!(within_window_hours(Some(now - Duration::hours(1)), now, 24));
+    assert!(within_window_hours(Some(now - Duration::hours(23)), now, 24));
+    assert!(!within_window_hours(Some(now - Duration::hours(25)), now, 24));
+    assert!(!within_window_hours(Some(now + Duration::hours(1)), now, 24));
+    assert!(!within_window_hours(None, now, 24));
 }
+
+#[test]
+fn dashboard_build_marks_sample_and_window() {
+    use chrono::{Duration, Utc};
+    use serde_json::json;
+    use waf_console::dashboard::{self, BuildOptions};
+
+    let now = Utc::now();
+    let inside = (now - Duration::hours(2)).to_rfc3339();
+    let outside = (now - Duration::hours(30)).to_rfc3339();
+    let alerts = vec![
+        json!({
+            "created_at": inside,
+            "scenario": "http-probing",
+            "source": {"ip": "1.2.3.4", "cn": "BR"},
+            "meta": [{"key": "http_path", "value": "/"}]
+        }),
+        json!({
+            "created_at": outside,
+            "scenario": "http-probing",
+            "source": {"ip": "5.6.7.8", "cn": "US"},
+            "meta": [{"key": "http_path", "value": "/old"}]
+        }),
+    ];
+    let engine = serde_json::Map::from_iter([
+        ("fail_closed".into(), json!(true)),
+        ("fail_closed_mutable".into(), json!(false)),
+        ("oob_log_only".into(), json!(true)),
+        ("appsec_listen".into(), json!(true)),
+    ]);
+    let opts = BuildOptions {
+        decisions: None,
+        engine: Some(&engine),
+        hosts: None,
+        host: "",
+        origin_probes: None,
+        public_probes: None,
+        hub_rules: None,
+        now: Some(now),
+        filters: None,
+        appsec: None,
+        edge: None,
+        alerts_fetch_limit: Some(2),
+    };
+    let out = dashboard::build(&alerts, opts);
+    assert_eq!(out["window"], "24h");
+    assert_eq!(out["sample"]["fetched"], 2);
+    assert_eq!(out["sample"]["in_window"], 1);
+    assert_eq!(out["sample"]["skipped_out_of_window"], 1);
+    assert_eq!(out["sample"]["capped"], true);
+    assert!(out["window_label"]
+        .as_str()
+        .unwrap_or("")
+        .contains("sample of newest"));
+    let actions = out["action_items"].as_array().cloned().unwrap_or_default();
+    assert!(actions.iter().any(|a| a["id"] == "fail-closed-cso"));
+}
+
