@@ -5,7 +5,7 @@ Homologação significa: instalação, health, probes Domains, decisions/alerts,
 CRUD de políticas e anti-lockout no reverse-proxy (`/waf` **sem** bouncer CrowdSec)
 exercitados em infraestrutura real — não só testes unitários.
 
-**Pin actual:** console **2.0.7** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
+**Pin actual:** console **2.0.8** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
 Ver [TOOLCHAIN.md](TOOLCHAIN.md).
 
 | Runtime / plataforma | Papel | Homologado | Notas |

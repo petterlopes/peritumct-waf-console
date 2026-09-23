@@ -451,6 +451,14 @@ button.hub-cat.active {
   padding: 8px 10px;
   font: inherit;
 }
+.filter-grid select {
+  background: #0b1220;
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
 .host-tile .kpi { font-size: 28px; font-weight: 700; margin: 10px 0 4px; }
 
 .ok { color: var(--green); }

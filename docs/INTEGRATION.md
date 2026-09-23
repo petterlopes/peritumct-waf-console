@@ -4,7 +4,7 @@ Default language of this document: **English**. Portuguese: [INTEGRATION.pt-BR.m
 
 This console operates a **local** CrowdSec Security Engine. It does not replace Traefik, Nomad, or the CrowdSec cloud console.
 
-**Console runtime:** Rust **2.0.7** (MSRV / Docker builder **1.98.1**, GPL-3.0-or-later) — see [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
+**Console runtime:** Rust **2.0.8** (MSRV / Docker builder **1.98.1**, GPL-3.0-or-later) — see [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
 Legacy Python 1.x under `legacy/python/` is rollback-only.
 
 Tested with CrowdSec **v1.8.1** (`crowdsecurity/crowdsec:v1.8.1`, commit `909b515`).
@@ -102,7 +102,7 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_POST_RATE` | `60` | Max POST mutations per client IP / minute |
 | `WAF_HEAVY_GET_RATE` | `40` | Max heavy GETs (dashboard/coverage/correlation/overview) per IP / minute |
 | `WAF_APP_PRODUCT` | `waf-console` | Product name in health `version` / `Server` header |
-| `WAF_APP_VERSION` | `2.0.7` | Semver string paired with product (Rust console) |
+| `WAF_APP_VERSION` | `2.0.8` | Semver string paired with product (Rust console) |
 | `WAF_ALERTS_LIMIT` | `500` | Max alerts per LAPI fetch for dashboard/map (1–500); 24h window uses `since=24h` + client filter |
 | `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map (**loopback only**) |
 | `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |

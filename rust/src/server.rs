@@ -21,6 +21,7 @@ use crate::correlate;
 use crate::dashboard;
 use crate::lapi;
 use crate::netguard::{self, RateLimiter};
+use crate::persist;
 use crate::routes;
 use crate::status;
 
@@ -46,6 +47,9 @@ static HEAVY_GET: &[&str] = &[
     "/api/overview",
     "/api/ip",
     "/api/offenders",
+    "/api/control/export",
+    "/api/audit/tail",
+    "/api/config/integrity",
 ];
 
 #[derive(Clone)]
@@ -419,40 +423,54 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
                 "items": lapi::prefer_local_decisions(&data, 120),
             }))
         }
-        "/api/alerts" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
-            Ok(data) => {
-                let mut items = Vec::new();
-                for mut alert in data {
-                    if let Some(obj) = alert.as_object_mut() {
-                        let src = lapi::source_of(obj);
-                        if let Some(cn) = src.get("cn").and_then(|v| v.as_str()) {
-                            if !cn.is_empty() {
-                                obj.insert("cn".into(), json!(cn));
+        "/api/alerts" => {
+            let since = match qs.get("since").map(|s| s.as_str()).unwrap_or("24h") {
+                "" => "24h".to_string(),
+                raw => match lapi::validate_since(raw) {
+                    Ok(s) => s,
+                    Err(e) => return json_err(StatusCode::BAD_REQUEST, e.to_string()),
+                },
+            };
+            match lapi::fetch_alerts_window(lapi::alerts_fetch_limit(200), Some(&since)) {
+                Ok(data) => {
+                    let mut items = Vec::new();
+                    for mut alert in data {
+                        if let Some(obj) = alert.as_object_mut() {
+                            let src = lapi::source_of(obj);
+                            if let Some(cn) = src.get("cn").and_then(|v| v.as_str()) {
+                                if !cn.is_empty() {
+                                    obj.insert("cn".into(), json!(cn));
+                                }
                             }
-                        }
-                        if let Some(asn) = src.get("as_name").and_then(|v| v.as_str()) {
-                            if !asn.is_empty() {
-                                obj.insert("as_name".into(), json!(asn));
+                            if let Some(asn) = src.get("as_name").and_then(|v| v.as_str()) {
+                                if !asn.is_empty() {
+                                    obj.insert("as_name".into(), json!(asn));
+                                }
                             }
+                            if let Some(origin) = obj
+                                .get("decisions")
+                                .and_then(|v| v.as_array())
+                                .and_then(|a| a.first())
+                                .and_then(|d| d.get("origin"))
+                                .and_then(|v| v.as_str())
+                            {
+                                obj.entry("origin".to_string())
+                                    .or_insert_with(|| json!(origin));
+                            }
+                            dashboard::enrich_alert(obj);
                         }
-                        if let Some(origin) = obj
-                            .get("decisions")
-                            .and_then(|v| v.as_array())
-                            .and_then(|a| a.first())
-                            .and_then(|d| d.get("origin"))
-                            .and_then(|v| v.as_str())
-                        {
-                            obj.entry("origin".to_string())
-                                .or_insert_with(|| json!(origin));
-                        }
-                        dashboard::enrich_alert(obj);
+                        items.push(alert);
                     }
-                    items.push(alert);
+                    json_ok(json!({
+                        "ok": true,
+                        "since": since,
+                        "sample": { "capped": true, "note": "LAPI sample; not a full census" },
+                        "items": items
+                    }))
                 }
-                json_ok(json!({"ok": true, "items": items}))
+                Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
             }
-            Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
-        },
+        }
         "/api/domains" => {
             let hosts = catalog::in_scope_hosts();
             let origin = lapi::probe_hosts(&hosts, "127.0.0.1");
@@ -582,6 +600,21 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
             Ok(v) => json_ok(v),
             Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
         },
+        "/api/control/export" => download_json(
+            persist::control_export(),
+            &format!(
+                "waf-control-export-{}.json",
+                persist::utc_now().replace(':', "").replace('Z', "")
+            ),
+        ),
+        "/api/audit/tail" => {
+            let lines = qs
+                .get("lines")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(100);
+            json_ok(persist::audit_tail(lines))
+        }
+        "/api/config/integrity" => json_ok(control::config_integrity()),
         "/api/routes" | "/api/tunnels" => match routes::payload() {
             Ok(v) => json_ok(v),
             Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),

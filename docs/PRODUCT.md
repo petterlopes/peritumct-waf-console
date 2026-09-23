@@ -39,6 +39,7 @@ If the console UI is unavailable, that alone does **not** redefine the protectio
 - **2.0.5 complements** (inspired by [CrowdSec Manager](https://github.com/hhftechnology/crowdsec_manager), CSO-filtered): IP dossier, read-only bouncers, repeated-offender sample — see [COMPARISON.md](COMPARISON.md).
 - **2.0.6:** Alerts filters/inspect/CSV and Decisions hide-expired/CSV — still no docker.sock, container shell, Traefik writes, or captcha.
 - **2.0.7:** Hub inventory read-only + IP management (check blocked / public IP).
+- **2.0.8:** Control-plane export (secrets redacted), audit.jsonl tail RO, alerts `since=` allowlist, CrowdSec-only config integrity hashes.
 
 ## Editorial article
 

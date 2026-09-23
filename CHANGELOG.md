@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.8 — 2026-09-23
+
+- CSO deferred P1 polish (no Manager privilege expansion):
+  - **Control-plane export** — `GET /api/control/export` (WAF_CONTROL JSON with secrets redacted)
+  - **Audit tail (RO)** — `GET /api/audit/tail` (local `audit.jsonl` only; not docker/container logs)
+  - **Alerts `since=`** — allowlisted server-side window on `/api/alerts` (1h…30d)
+  - **CrowdSec config integrity** — `GET /api/config/integrity` (SHA-1 of AppSec/profiles paths; never Traefik)
+- Admin UI: Operator tools card; Alerts since select reloads LAPI sample
+- Docs: [COMPARISON.md](docs/COMPARISON.md) deferred P1 closed
+
 ## 2.0.7 — 2026-09-23
 
 - CSO Hub/IP/Health screenshot pass vs CrowdSec Manager:

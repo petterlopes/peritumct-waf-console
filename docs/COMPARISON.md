@@ -2,7 +2,7 @@
 
 CSO review of [hhftechnology/crowdsec_manager](https://github.com/hhftechnology/crowdsec_manager) (Go + React, MIT) as a **feature complement** source — not a stack merge.
 
-**Console pin:** PeritumCT **2.0.7** · CrowdSec engine **v1.8.1** · loopback LAPI/AppSec · `/waf` off bouncer · GPL-3.0-or-later.
+**Console pin:** PeritumCT **2.0.8** · CrowdSec engine **v1.8.1** · loopback LAPI/AppSec · `/waf` off bouncer · GPL-3.0-or-later.
 
 ## Scope of this review
 
@@ -16,6 +16,7 @@ CSO review of [hhftechnology/crowdsec_manager](https://github.com/hhftechnology/
 | R6 | Screenshot-grounded Alerts/Decisions analytics UX (2.0.6) |
 | R7 | Hub browse RO + IP management + reject Health/Logs/Notifications privilege (2.0.7) |
 | R8 | System plane screenshots: Services / Updates / Terminal / Traefik Whitelist — **all reject**; review closed |
+| R9 | Deferred P1 polish: control export, audit tail, alerts since, CrowdSec config integrity (2.0.8) |
 
 ## Posture difference (non-negotiable)
 
@@ -33,14 +34,14 @@ Manager is excellent for homelab/Pangolin fleets that accept host Docker control
 
 ## Screenshot evidence (Manager UI)
 
-Operator screenshots of Manager v1.x informed the 2.0.5–2.0.7 adapt/reject list (R6–R8):
+Operator screenshots of Manager v1.x informed the 2.0.5–2.0.7 adapt/reject list (R6–R8); R9 ships deferred P1 polish in 2.0.8:
 
 | Manager screen | Observed | CSO decision |
 |----------------|----------|--------------|
 | Hub Home / parsers / scenarios / AppSec / postoverflows | Install Mode, Remove, path helpers | **Adapt** RO inventory (2.0.7); **reject** install/remove |
 | Health Containers / Traefik Integration | docker.sock inventory | **Reject** |
 | IP Management | Check blocked / Security check / Unban / public IP | **Adapt** (2.0.7) on Decisions |
-| Logs stream | Docker service logs + Start Stream | **Reject** docker stream; optional path-tail still deferred |
+| Logs stream | Docker service logs + Start Stream | **Reject** docker stream; operator **audit.jsonl** tail only (2.0.8) |
 | Notifications Discord wizard | Detect compose + webhook/CTI/Geoapify secrets | **Reject** (no secret harvesting UI) |
 | **Services Management** | Start/Stop/Restart for pangolin, traefik, crowdsec, gerbil; **Enroll CrowdSec**; **Graceful Shutdown** | **Reject** — host/orchestrator control plane |
 | **System Update** | Edit Docker image tags (CrowdSec/Gerbil/Pangolin/Traefik) | **Reject** — image lifecycle belongs to IaC, not the WAF console |
@@ -68,6 +69,8 @@ Operator screenshots of Manager v1.x informed the 2.0.5–2.0.7 adapt/reject lis
 | Allowlists / whitelists | Yes | LAPI allowlists only | Keep ours; no Traefik whitelist UI |
 | Hub browse / install | Yes (install mode) | **2.0.7** RO inventory (collections/scenarios/parsers/postoverflows/AppSec) | **Integrated RO** — install/remove rejected |
 | IP management | Check / Security / Unban | **2.0.7** on Decisions (+ dossier 2.0.5) | **Integrated (adapt)** |
+| Control export / audit tail / config integrity | Partial (docker/Traefik) | **2.0.8** WAF_CONTROL export + audit.jsonl + CrowdSec hashes RO | **Integrated (adapt)** — no docker/Traefik |
+| Alerts server-side `since` | Yes | **2.0.8** allowlisted `since=` on `/api/alerts` | **Integrated (adapt)** |
 | Notifications / Discord wizard | Yes | No | **Reject** |
 | Docker log stream | Yes | No | **Reject** |
 | Bouncers inventory | Yes (+ add/delete) | **`GET /api/bouncers`** RO (2.0.5) | Integrated RO |
@@ -103,6 +106,13 @@ Operator screenshots of Manager v1.x informed the 2.0.5–2.0.7 adapt/reject lis
 2. **IP management** — Decisions view: public IP label, Check blocked (dossier summary), dossier + ban/unban already present.
 3. Screenshot rejects confirmed: Docker container health tab, Traefik Integration tab, Hub install mode, Discord notification wizard (webhook/CTI/Geoapify keys), live docker log stream, scenario Remove.
 
+## Integrated in 2.0.8 (deferred P1 polish)
+
+1. **Control-plane export** — `GET /api/control/export` (WAF_CONTROL JSON; secrets redacted).
+2. **Audit tail (RO)** — `GET /api/audit/tail` (local `audit.jsonl` only — never docker/container logs).
+3. **Alerts `since=`** — allowlisted server-side window on `/api/alerts` (1h…30d); UI select reloads the LAPI sample.
+4. **CrowdSec config integrity** — `GET /api/config/integrity` (SHA-1 of AppSec/profiles paths; never Traefik).
+
 ## R8 — System plane (no code; rejects only)
 
 Final Manager screenshots confirm the privilege boundary. **Nothing from this plane is integrated:**
@@ -115,7 +125,7 @@ Final Manager screenshots confirm the privilege boundary. **Nothing from this pl
 | Terminal | Interactive container shell is RCE-adjacent for operators and attackers who reach `/waf` |
 | Whitelist Management (CrowdSec + Traefik) | Traefik dynamic whitelist writes remain forbidden; use Allowlists (LAPI/cscli) only |
 
-**Review status:** CrowdSec Manager feature surface reviewed for safe complements. Ship line is **2.0.7**. Remaining deferred items are optional polish (control export, path-tail logs, server-side alert windows) — not Manager privilege features.
+**Review status:** CrowdSec Manager feature surface reviewed for safe complements. Ship line is **2.0.8**. Deferred polish (control export, audit tail, alert since, CrowdSec config integrity) shipped in 2.0.8.
 
 ## Explicitly rejected
 
@@ -133,12 +143,12 @@ Final Manager screenshots confirm the privilege boundary. **Nothing from this pl
 
 | Item | Notes |
 |------|--------|
-| Control-plane export | Downloadable snapshot of `WAF_CONTROL` JSON (no secrets) |
-| Read-only log tail | Bounded tail of operator-configured paths under allowlist — **not** docker log stream |
-| Server-side since/until on alerts | Today filters are client-side on the 24h capped sample |
-| CrowdSec-only config hash RO | Optional FIM of AppSec/profiles — never Traefik paths |
+| ~~Control-plane export~~ | **Done 2.0.8** — `GET /api/control/export` (secrets redacted) |
+| ~~Read-only audit tail~~ | **Done 2.0.8** — `GET /api/audit/tail` (audit.jsonl only, not docker logs) |
+| ~~Server-side since on alerts~~ | **Done 2.0.8** — allowlisted `since=` on `/api/alerts` |
+| ~~CrowdSec-only config hash RO~~ | **Done 2.0.8** — `GET /api/config/integrity` (never Traefik paths) |
 
-## Operator takeaway
+**Review status:** Manager complements closed (R8). Deferred P1 polish shipped in **2.0.8**.
 
 Use **CrowdSec Manager** when you want a Docker-centric full stack UI (especially Pangolin + Traefik writes + captcha). Use **PeritumCT WAF Console** when CrowdSec/Traefik already run under a hardened IaC pin and the console must stay **loopback, non-bouncer, non-docker.sock**, with per-FQDN AppSec and local OWASP/MITRE context.
 

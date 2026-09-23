@@ -65,6 +65,7 @@ function viewTitles() {
 let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null, dashboard: null }
 let hideExpiredDecisions = true
 let alertFilters = { ip: "", scenario: "", country: "", origin: "" }
+let alertSince = "24h"
 let hubSelected = "scenarios"
 let hubSearch = ""
 let hubCache = {}
@@ -1441,11 +1442,23 @@ async function loadAdmin() {
   renderAdmin(admin)
 }
 
+async function loadAlerts(since) {
+  const s = since || alertSince || "24h"
+  alertSince = s
+  const alerts = await api("/api/alerts?since=" + encodeURIComponent(s))
+  cache = { ...cache, alerts: alerts.items || [] }
+  if ($("alertFilterSince") && $("alertFilterSince").value !== s) $("alertFilterSince").value = s
+  applyFilter()
+  return alerts
+}
+
 async function loadCore() {
+  const since = ($("alertFilterSince") && $("alertFilterSince").value) || alertSince || "24h"
+  alertSince = since
   const [overview, decisions, alerts, domains, engine, correlation] = await Promise.all([
     api("/api/overview"),
     api("/api/decisions"),
-    api("/api/alerts"),
+    api("/api/alerts?since=" + encodeURIComponent(since)),
     api("/api/domains"),
     api("/api/engine"),
     api("/api/correlation")
@@ -1616,7 +1629,7 @@ if ($("dossierForm")) {
   })
 }
 if ($("alertFilterForm")) {
-  $("alertFilterForm").addEventListener("submit", (ev) => {
+  $("alertFilterForm").addEventListener("submit", async (ev) => {
     ev.preventDefault()
     alertFilters = {
       ip: ($("alertFilterIp") && $("alertFilterIp").value) || "",
@@ -1624,17 +1637,63 @@ if ($("alertFilterForm")) {
       country: ($("alertFilterCountry") && $("alertFilterCountry").value) || "",
       origin: ($("alertFilterOrigin") && $("alertFilterOrigin").value) || ""
     }
-    applyFilter()
+    const since = ($("alertFilterSince") && $("alertFilterSince").value) || "24h"
+    try {
+      await loadAlerts(since)
+    } catch (err) {
+      setLive(false, String(err.message || err))
+      applyFilter()
+    }
   })
 }
 if ($("alertFilterReset")) {
-  $("alertFilterReset").addEventListener("click", () => {
+  $("alertFilterReset").addEventListener("click", async () => {
     alertFilters = { ip: "", scenario: "", country: "", origin: "" }
     ;["alertFilterIp", "alertFilterScenario", "alertFilterCountry", "alertFilterOrigin"].forEach((id) => {
       if ($(id)) $(id).value = ""
     })
-    applyFilter()
+    if ($("alertFilterSince")) $("alertFilterSince").value = "24h"
+    try {
+      await loadAlerts("24h")
+    } catch (err) {
+      setLive(false, String(err.message || err))
+      applyFilter()
+    }
   })
+}
+if ($("integrityBtn")) {
+  $("integrityBtn").onclick = async () => {
+    const pre = $("opsPre")
+    try {
+      const data = await api("/api/config/integrity")
+      if (pre) {
+        pre.classList.remove("hidden")
+        pre.textContent = JSON.stringify(data, null, 2)
+      }
+    } catch (err) {
+      if (pre) {
+        pre.classList.remove("hidden")
+        pre.textContent = String(err.message || err)
+      }
+    }
+  }
+}
+if ($("auditTailBtn")) {
+  $("auditTailBtn").onclick = async () => {
+    const pre = $("opsPre")
+    try {
+      const data = await api("/api/audit/tail?lines=100")
+      if (pre) {
+        pre.classList.remove("hidden")
+        pre.textContent = JSON.stringify(data, null, 2)
+      }
+    } catch (err) {
+      if (pre) {
+        pre.classList.remove("hidden")
+        pre.textContent = String(err.message || err)
+      }
+    }
+  }
 }
 if ($("hideExpiredDecisions")) {
   $("hideExpiredDecisions").addEventListener("change", (ev) => {

@@ -143,9 +143,47 @@ fn repeated_offenders_ranks_sources() {
 }
 
 #[test]
-fn ip_dossier_rejects_invalid_ip() {
-    use waf_console::lapi::ip_dossier;
-    assert!(ip_dossier("not-an-ip").is_err());
-    assert!(ip_dossier("").is_err());
+fn validate_since_allowlist() {
+    use waf_console::lapi::validate_since;
+    assert_eq!(validate_since("24h").unwrap(), "24h");
+    assert_eq!(validate_since("7D").unwrap(), "7d");
+    assert!(validate_since("99h").is_err());
+    assert!(validate_since("now").is_err());
+    assert!(validate_since("").is_err());
+}
+
+#[test]
+fn control_export_and_audit_tail_offline() {
+    use waf_console::persist::{audit, audit_tail, control_export};
+
+    let dir = TempDir::new().expect("tempdir");
+    std::env::set_var("WAF_CONTROL", dir.path());
+    let sites = dir.path().join("sites.json");
+    std::fs::write(&sites, r#"{"hosts":{"example.com":{"kind":"web"}},"secret_token":"abc"}"#).unwrap();
+    let mut map = serde_json::Map::new();
+    map.insert("ip".into(), json!("203.0.113.10"));
+    audit("test.event", &map);
+    let export = control_export();
+    assert_eq!(export["ok"], true);
+    assert_eq!(export["files"]["sites"]["present"], true);
+    let sites_data = &export["files"]["sites"]["data"];
+    assert_eq!(sites_data["secret_token"], "[redacted]");
+    let tail = audit_tail(10);
+    assert_eq!(tail["ok"], true);
+    assert!(tail["items"].as_array().unwrap().len() >= 1);
+    std::env::remove_var("WAF_CONTROL");
+}
+
+#[test]
+fn config_integrity_reports_missing_soft() {
+    use waf_console::control::config_integrity;
+    let dir = TempDir::new().expect("tempdir");
+    std::env::set_var("CROWDSEC_CONFIG", dir.path());
+    let out = config_integrity();
+    assert_eq!(out["ok"], true);
+    let files = out["files"].as_array().expect("files");
+    assert!(!files.is_empty());
+    assert!(files.iter().all(|f| f["present"] == false || f.get("sha1").is_some()));
+    std::env::remove_var("CROWDSEC_CONFIG");
 }
 

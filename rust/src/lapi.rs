@@ -1100,6 +1100,17 @@ pub fn fetch_alerts(limit: usize) -> Result<Vec<Value>> {
     fetch_alerts_window(limit, Some("24h"))
 }
 
+/// Allowlisted LAPI `since` values only (rejects free-form injection).
+pub fn validate_since(raw: &str) -> Result<String> {
+    let s = raw.trim().to_lowercase();
+    const ALLOWED: &[&str] = &["1h", "4h", "12h", "24h", "48h", "7d", "14d", "30d"];
+    if ALLOWED.contains(&s.as_str()) {
+        Ok(s)
+    } else {
+        Err(anyhow!("invalid since (allowed: 1h,4h,12h,24h,48h,7d,14d,30d)"))
+    }
+}
+
 pub fn fetch_alerts_window(limit: usize, since: Option<&str>) -> Result<Vec<Value>> {
     let limit = limit.clamp(1, 500);
     let since_key = since.unwrap_or("-");

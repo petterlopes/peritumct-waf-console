@@ -1059,3 +1059,56 @@ pub fn sites_payload() -> Value {
         },
     })
 }
+
+/// Read-only integrity hashes for CrowdSec operator configs (never Traefik paths).
+pub fn config_integrity() -> Value {
+    let root = config_root();
+    let candidates = [
+        ("profiles", root.join("profiles.yaml")),
+        ("acquis_appsec", root.join("acquis.d").join("appsec.yaml")),
+        ("site_filters_yaml", filters_yaml()),
+        (
+            "operators_parser",
+            root.join("parsers")
+                .join("s02-enrich")
+                .join("cso-operators.yaml"),
+        ),
+    ];
+    let mut files = Vec::new();
+    for (name, path) in candidates {
+        if path.is_file() {
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    let sha1 = crate::sha1_digest::hex(&bytes);
+                    files.push(json!({
+                        "name": name,
+                        "path": path.display().to_string(),
+                        "present": true,
+                        "bytes": bytes.len(),
+                        "sha1": sha1,
+                    }));
+                }
+                Err(e) => {
+                    files.push(json!({
+                        "name": name,
+                        "path": path.display().to_string(),
+                        "present": true,
+                        "error": e.to_string().chars().take(200).collect::<String>(),
+                    }));
+                }
+            }
+        } else {
+            files.push(json!({
+                "name": name,
+                "path": path.display().to_string(),
+                "present": false,
+            }));
+        }
+    }
+    json!({
+        "ok": true,
+        "config_root": root.display().to_string(),
+        "files": files,
+        "note": "CrowdSec-only config hashes. Traefik static/dynamic paths are never inspected or restored from this console.",
+    })
+}

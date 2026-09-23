@@ -546,8 +546,20 @@
             <button type="button" id="exportAlertsCsv" class="ghost" data-i18n="export.csv">Export CSV</button>
           </div>
         </div>
-        <p class="hint" data-i18n="alerts.hint">LAPI sample (since=24h, capped). Filters are client-side on the loaded sample — not a full census. CAPI community alerts stay omitted from Decisions; this list is local LAPI only.</p>
+        <p class="hint" data-i18n="alerts.hint">LAPI sample (since selectable, capped). Filters are client-side on the loaded sample — not a full census. CAPI community alerts stay omitted from Decisions; this list is local LAPI only.</p>
         <form id="alertFilterForm" class="filter-grid">
+          <label><span data-i18n="alerts.f.since">Since</span>
+            <select id="alertFilterSince" name="since" aria-label="Since">
+              <option value="1h">1h</option>
+              <option value="4h">4h</option>
+              <option value="12h">12h</option>
+              <option value="24h" selected>24h</option>
+              <option value="48h">48h</option>
+              <option value="7d">7d</option>
+              <option value="14d">14d</option>
+              <option value="30d">30d</option>
+            </select>
+          </label>
           <label><span data-i18n="alerts.f.ip">Source IP</span><input id="alertFilterIp" name="ip" autocomplete="off" placeholder="203.0.113.10"></label>
           <label><span data-i18n="alerts.f.scenario">Scenario</span><input id="alertFilterScenario" name="scenario" autocomplete="off" placeholder="http-probing"></label>
           <label><span data-i18n="alerts.f.country">Country (ISO)</span><input id="alertFilterCountry" name="country" autocomplete="off" placeholder="US" maxlength="2"></label>
@@ -819,6 +831,19 @@
         <div class="card-head"><h2 data-i18n="admin.title">WAF administration</h2></div>
         <p class="hint" data-i18n="admin.hint">Operate CrowdSec policies, allowlists, decisions and engine posture. This console never writes Traefik dynamic.yaml.</p>
         <div class="action-list" id="adminActions"></div>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="ops.title">Operator tools</h2>
+          <span class="tag" data-i18n="tag.readonly">Read-only</span>
+        </div>
+        <p class="hint" data-i18n="ops.hint">Safe exports and integrity checks. No docker.sock, no Traefik writes, no container shell.</p>
+        <div class="inline wrap">
+          <a class="ghost" href="/waf/api/control/export" download="waf-control-export.json" data-i18n="ops.export">Export WAF_CONTROL</a>
+          <button type="button" id="integrityBtn" class="ghost" data-i18n="ops.integrity">Config integrity</button>
+          <button type="button" id="auditTailBtn" class="ghost" data-i18n="ops.audit">Audit tail</button>
+        </div>
+        <pre id="opsPre" class="code hidden" aria-live="polite"></pre>
       </article>
     </section>
 
