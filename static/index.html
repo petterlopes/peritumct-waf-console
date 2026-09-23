@@ -477,6 +477,8 @@
         <div class="card-head">
           <h2 data-i18n="decisions.title">Local decisions</h2>
           <div class="inline wrap">
+            <label class="chk"><input type="checkbox" id="hideExpiredDecisions" checked> <span data-i18n="decisions.hide_expired">Hide expired</span></label>
+            <button type="button" id="exportDecisionsCsv" class="ghost" data-i18n="export.csv">Export CSV</button>
             <form id="unbanForm" class="inline">
               <label class="sr-only" for="unbanIp" data-i18n="decisions.unban_ph">IP to unban</label>
               <input id="unbanIp" name="ip" data-i18n-placeholder="decisions.unban_ph" placeholder="IP to unban" autocomplete="off">
@@ -498,7 +500,8 @@
             </form>
           </div>
         </div>
-        <p class="hint" data-i18n="decisions.hint">Only crowdsec/cscli origins. The CAPI community blocklist is omitted. Unban by IP still deletes the LAPI decision. Fail-closed and CRS OOB stay unchanged.</p>
+        <p class="hint" data-i18n="decisions.hint">Only crowdsec/cscli origins. The CAPI community blocklist is omitted. Unban by IP still deletes the LAPI decision. Fail-closed and CRS OOB stay unchanged. Ban type is always local ban — no captcha / bot-challenge from this UI.</p>
+        <p class="hint" id="decisionsCount"></p>
         <div class="table-wrap">
           <table>
             <thead><tr><th data-i18n="th.value">Value</th><th data-i18n="th.origin">Origin</th><th data-i18n="th.type">Type</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.until">Until</th><th></th></tr></thead>
@@ -522,15 +525,61 @@
 
     <section id="view-alerts" class="view hidden">
       <article class="card">
-        <div class="card-head"><h2 data-i18n="alerts.title">Recent alerts</h2></div>
+        <div class="card-head">
+          <h2 data-i18n="alerts.title">Recent alerts</h2>
+          <div class="inline wrap">
+            <button type="button" id="exportAlertsCsv" class="ghost" data-i18n="export.csv">Export CSV</button>
+          </div>
+        </div>
+        <p class="hint" data-i18n="alerts.hint">LAPI sample (since=24h, capped). Filters are client-side on the loaded sample — not a full census. CAPI community alerts stay omitted from Decisions; this list is local LAPI only.</p>
+        <form id="alertFilterForm" class="filter-grid">
+          <label><span data-i18n="alerts.f.ip">Source IP</span><input id="alertFilterIp" name="ip" autocomplete="off" placeholder="203.0.113.10"></label>
+          <label><span data-i18n="alerts.f.scenario">Scenario</span><input id="alertFilterScenario" name="scenario" autocomplete="off" placeholder="http-probing"></label>
+          <label><span data-i18n="alerts.f.country">Country (ISO)</span><input id="alertFilterCountry" name="country" autocomplete="off" placeholder="US" maxlength="2"></label>
+          <label><span data-i18n="alerts.f.origin">Origin</span><input id="alertFilterOrigin" name="origin" autocomplete="off" placeholder="crowdsec"></label>
+          <div class="inline wrap filter-actions">
+            <button type="submit" data-i18n="alerts.apply">Apply filters</button>
+            <button type="button" id="alertFilterReset" class="ghost" data-i18n="alerts.reset">Reset</button>
+          </div>
+        </form>
+        <div class="grid-2 alerts-analytics">
+          <div>
+            <h3 data-i18n="alerts.top_scenarios">Top scenarios (sample)</h3>
+            <div id="alertTopScenarios" class="stack"></div>
+          </div>
+          <div>
+            <h3 data-i18n="alerts.top_countries">Top countries (sample)</h3>
+            <div id="alertTopCountries" class="stack"></div>
+          </div>
+        </div>
+        <p class="hint" id="alertsCount"></p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th data-i18n="th.when">When</th><th data-i18n="th.ip">IP</th><th data-i18n="th.cc">ISO</th><th data-i18n="th.scenario">Scenario</th><th data-i18n="th.capacity">Capacity</th></tr></thead>
+            <thead><tr>
+              <th data-i18n="th.when">When</th>
+              <th data-i18n="th.ip">IP</th>
+              <th data-i18n="th.cc">ISO</th>
+              <th data-i18n="th.as">AS</th>
+              <th data-i18n="th.scenario">Scenario</th>
+              <th data-i18n="th.origin">Origin</th>
+              <th data-i18n="th.events">Events</th>
+              <th></th>
+            </tr></thead>
             <tbody id="alertsBody"></tbody>
           </table>
         </div>
       </article>
     </section>
+
+    <dialog id="alertInspect" class="inspect-dialog">
+      <form method="dialog" class="inspect-head">
+        <h2 id="alertInspectTitle" data-i18n="alerts.inspect">Alert inspection</h2>
+        <button type="submit" class="ghost" data-i18n="close">Close</button>
+      </form>
+      <p class="hint" data-i18n="alerts.inspect_hint">LAPI detail from the loaded sample. Captcha/challenge decision types may appear as historical data — this console never creates them.</p>
+      <div id="alertInspectSummary" class="inspect-summary"></div>
+      <pre id="alertInspectPre" class="code"></pre>
+    </dialog>
 
     <section id="view-owasp" class="view hidden">
       <article class="card glow-cyan">

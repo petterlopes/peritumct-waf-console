@@ -16,7 +16,7 @@ Operations interface for **local** [CrowdSec](https://github.com/crowdsecurity/c
 
 | | |
 |--|--|
-| **Console** | **2.0.5** · GPL-3.0-or-later · [NOTICE](NOTICE) |
+| **Console** | **2.0.6** · GPL-3.0-or-later · [NOTICE](NOTICE) |
 | **Engine** | CrowdSec **v1.8.1** (MIT, separate process) |
 | **Article** | [Local control of CrowdSec, powered by a Rust backend](https://periciacomputacional.com/peritumct-waf-console-local-control-of-crowdsec-powered-by-a-rust-backend) |
 | **Docs** | [PRODUCT](docs/PRODUCT.md) · [INTEGRATION](docs/INTEGRATION.md) · [HOMOLOGATION](docs/HOMOLOGATION.md) · [MARKETING](docs/MARKETING.md) |
@@ -57,9 +57,9 @@ More captures and captions: [docs/media/README.md](docs/media/README.md).
 
 - **Dashboard / Overview** — security action items, detection tools, 24h LAPI traffic (honest sample metadata when capped)
 - **Policies** — per-FQDN AppSec: allow path, skip named in-band rule, host bypass (with confirmation)
-- **Decisions & Allowlists** — local ban/unban (≤168h); CIDR allowlist via `cscli` / Nomad exec; **IP dossier** and **repeated offenders** sample rollup (2.0.5+)
+- **Decisions & Allowlists** — local ban/unban (≤168h); CIDR allowlist via `cscli` / Nomad exec; **IP dossier** and **repeated offenders** (2.0.5+); Decisions CSV / hide-expired (2.0.6+)
 - **Engine** — posture + **read-only bouncer inventory** (`cscli`)
-- **Alerts · Map · Metrics · Domains** — LAPI geo map (no third-party GeoIP API); HTTPS probes with status palette
+- **Alerts · Map · Metrics · Domains** — LAPI geo map; Alerts filters/inspect/CSV + sample top scenarios/countries (2.0.6+); HTTPS probes with status palette
 - **OWASP · MITRE** — local catalogs only (no runtime download from MITRE/OWASP GitHub)
 - **CTI exports** — downloadable STIX / MISP / TheHive-shaped files; **no** automatic outbound push
 - **Hardening** — loopback bind only; SSRF checks; rate limits; CSP; `/waf` must stay **off** the bouncer
@@ -96,7 +96,7 @@ Policy apply and allowlists need the **admin** Compose shape (see example commen
 - Replace CrowdSec detection / Traefik remediation
 - Claim “first in the world” exclusivity — differentiate by the **local + Rust + per-FQDN + OWASP/MITRE** combination
 
-## Operator honesty (2.0.5+)
+## Operator honesty (2.0.6+)
 
 | Topic | Reality |
 |-------|---------|

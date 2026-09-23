@@ -1,7 +1,7 @@
 # Architecture
 
 Operator-facing HTTP console for a **local** CrowdSec Security Engine (LAPI + AppSec).
-**Primary runtime: Rust 2.0.5** (`rust/` → binary `waf-console`, MSRV **1.98.1**, **GPL-3.0-or-later**).
+**Primary runtime: Rust 2.0.6** (`rust/` → binary `waf-console`, MSRV **1.98.1**, **GPL-3.0-or-later**).
 English UI default; `pt-BR` secondary. Python 1.x under `legacy/python/` is rollback only.
 See [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
 
@@ -11,7 +11,7 @@ See [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
 Operator browser (EN / pt-BR)
         │  PathPrefix /waf  (admin overlay — NO CrowdSec bouncer)
         ▼
-waf-console 127.0.0.1:18990   Axum (Tokio) — Rust 2.0.5 / rustc 1.98.1
+waf-console 127.0.0.1:18990   Axum (Tokio) — Rust 2.0.6 / rustc 1.98.1
         │
         ├─ LAPI 127.0.0.1:18080     machine JWT + bouncer X-Api-Key
         ├─ AppSec 127.0.0.1:7422    policy YAML + SIGHUP to CrowdSec PIDs

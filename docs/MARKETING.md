@@ -68,6 +68,6 @@ Backend **Rust** (2.x). Funções principais sem depender do CrowdSec Console Sa
 - [ ] About description / website / topics set
 - [ ] Social preview image uploaded
 - [ ] Article URL live
-- [ ] Version pin in README matches release (`2.0.5+`)
+- [ ] Version pin in README matches release (`2.0.6+`)
 - [ ] No “first in the world” claims
 - [ ] LICENSE / NOTICE / SECURITY.md linked

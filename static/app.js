@@ -63,6 +63,8 @@ function viewTitles() {
 }
 
 let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null, dashboard: null }
+let hideExpiredDecisions = true
+let alertFilters = { ip: "", scenario: "", country: "", origin: "" }
 let owaspSelected = ""
 let mitreSelected = ""
 let mitreTactic = ""
@@ -212,6 +214,61 @@ function countryOf(alert) {
   if (!cn && alert) cn = alert.cn || ""
   if (!cn) cn = cnOfIp(ipOf(alert))
   return String(cn || "").toUpperCase()
+}
+
+function asOf(alert) {
+  const src = (alert && alert.source) || {}
+  return alert.as_name || src.as_name || src.asname || src.asn || (alert.events && alert.events[0] && alert.events[0].meta && (alert.events[0].meta.ASNOrg || alert.events[0].meta.ASNumber)) || "—"
+}
+
+function originOf(item) {
+  if (!item) return "—"
+  if (item.origin) return item.origin
+  if (item.decisions && item.decisions[0] && item.decisions[0].origin) return item.decisions[0].origin
+  return "—"
+}
+
+function eventsOf(alert) {
+  if (alert.events_count != null) return alert.events_count
+  if (alert.capacity != null) return alert.capacity
+  if (Array.isArray(alert.events)) return alert.events.length
+  if (Array.isArray(alert.decisions)) return alert.decisions.length
+  return "—"
+}
+
+function decisionExpired(d) {
+  const u = String((d && (d.until || d.duration)) || "").trim()
+  if (!u || u === "—" || /^n\/?a$/i.test(u)) return false
+  if (/^0+s?$/i.test(u)) return true
+  const t = Date.parse(u)
+  if (!Number.isNaN(t)) return t < Date.now()
+  return false
+}
+
+function filteredAlerts(items) {
+  const ipQ = (alertFilters.ip || "").trim().toLowerCase()
+  const scenQ = (alertFilters.scenario || "").trim().toLowerCase()
+  const ccQ = (alertFilters.country || "").trim().toUpperCase()
+  const oriQ = (alertFilters.origin || "").trim().toLowerCase()
+  return (items || []).filter((a) => {
+    if (!matchesFilter([ipOf(a), scenarioOf(a), countryOf(a), asOf(a), originOf(a), hostOf(a)].join(" "))) return false
+    if (!geoMatch(countryOf(a)) || !hostMatch(a)) return false
+    if (ipQ && !String(ipOf(a)).toLowerCase().includes(ipQ)) return false
+    if (scenQ && !String(scenarioOf(a)).toLowerCase().includes(scenQ)) return false
+    if (ccQ && countryOf(a) !== ccQ) return false
+    if (oriQ && !String(originOf(a)).toLowerCase().includes(oriQ)) return false
+    return true
+  })
+}
+
+function topCounts(items, keyFn, limit) {
+  const m = {}
+  ;(items || []).forEach((it) => {
+    const k = keyFn(it) || "—"
+    if (!k || k === "—") return
+    m[k] = (m[k] || 0) + 1
+  })
+  return Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b)).slice(0, limit || 8).map((k) => ({ l: k, r: m[k] }))
 }
 
 function mapPoints() {
@@ -544,10 +601,14 @@ function renderMetrics(mx) {
 function renderDecisions(items) {
   const iso = selectedIso()
   const filtered = (items || []).filter((d) => {
-    if (!matchesFilter([d.value, d.origin, d.scenario, d.reason].join(" "))) return false
+    if (hideExpiredDecisions && decisionExpired(d)) return false
+    if (!matchesFilter([d.value, d.origin, d.scenario, d.reason, d.type].join(" "))) return false
     if (!iso) return true
     return geoMatch(cnOfIp(d.value || d.ip || ""))
   })
+  if ($("decisionsCount")) {
+    $("decisionsCount").textContent = t("decisions.count", "{n} local decisions").replace("{n}", String(filtered.length))
+  }
   $("decisionsBody").innerHTML = filtered.map((d) => {
     const ip = d.value || d.ip || "—"
     return `<tr>
@@ -562,17 +623,52 @@ function renderDecisions(items) {
 }
 
 function renderAlerts(items) {
-  const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a), countryOf(a), hostOf(a)].join(" ")) && geoMatch(countryOf(a)) && hostMatch(a))
-  $("alertsBody").innerHTML = filtered.map((a) => {
+  const filtered = filteredAlerts(items)
+  if ($("alertsCount")) {
+    $("alertsCount").textContent = t("alerts.count", "{n} alerts in filtered sample").replace("{n}", String(filtered.length))
+  }
+  if ($("alertTopScenarios")) $("alertTopScenarios").innerHTML = stack(topCounts(filtered, scenarioOf, 8))
+  if ($("alertTopCountries")) $("alertTopCountries").innerHTML = stack(topCounts(filtered, countryOf, 8))
+  $("alertsBody").innerHTML = filtered.map((a, idx) => {
     const ip = ipOf(a)
+    const id = a.id != null ? a.id : idx
     return `<tr>
     <td>${esc(fmtTime(a.created_at))}</td>
     <td><button type="button" class="linkish" data-dossier="${esc(ip)}"><code>${esc(ip)}</code></button></td>
     <td>${esc(countryOf(a) || "—")}</td>
+    <td>${esc(asOf(a))}</td>
     <td>${esc(scenarioOf(a))}</td>
-    <td>${esc(a.capacity || (a.decisions ? a.decisions.length : "—"))}</td>
+    <td>${esc(originOf(a))}</td>
+    <td>${esc(eventsOf(a))}</td>
+    <td><button type="button" data-inspect="${esc(String(id))}" data-inspect-idx="${idx}">${t("alerts.view", "Inspect")}</button></td>
   </tr>`
-  }).join("") || `<tr><td colspan="5">${t("alerts.empty")}</td></tr>`
+  }).join("") || `<tr><td colspan="8">${t("alerts.empty")}</td></tr>`
+}
+
+function showAlertInspect(alert) {
+  const dlg = $("alertInspect")
+  if (!dlg || !alert) return
+  const ip = ipOf(alert)
+  const title = $("alertInspectTitle")
+  if (title) title.textContent = t("alerts.inspect", "Alert inspection") + (alert.id != null ? " #" + alert.id : "")
+  const sum = $("alertInspectSummary")
+  if (sum) {
+    const decs = (alert.decisions || []).map((d) => (d.type || d.action || "—") + " · " + (d.duration || d.until || "")).join("; ") || "—"
+    sum.innerHTML = [
+      ["Scenario", scenarioOf(alert)],
+      ["IP", ip],
+      ["Country", countryOf(alert) || "—"],
+      ["AS", asOf(alert)],
+      ["Origin", originOf(alert)],
+      ["Events", eventsOf(alert)],
+      ["When", fmtTime(alert.created_at)],
+      ["Decisions", decs]
+    ].map(([k, v]) => `<div class="inspect-kv"><span>${esc(k)}</span><b>${esc(String(v))}</b></div>`).join("")
+  }
+  const pre = $("alertInspectPre")
+  if (pre) pre.textContent = JSON.stringify(alert, null, 2)
+  if (typeof dlg.showModal === "function") dlg.showModal()
+  else dlg.classList.remove("hidden")
 }
 
 function renderOwasp(data) {
@@ -1479,6 +1575,60 @@ if ($("dossierForm")) {
     await showIpDossier(ip)
   })
 }
+if ($("alertFilterForm")) {
+  $("alertFilterForm").addEventListener("submit", (ev) => {
+    ev.preventDefault()
+    alertFilters = {
+      ip: ($("alertFilterIp") && $("alertFilterIp").value) || "",
+      scenario: ($("alertFilterScenario") && $("alertFilterScenario").value) || "",
+      country: ($("alertFilterCountry") && $("alertFilterCountry").value) || "",
+      origin: ($("alertFilterOrigin") && $("alertFilterOrigin").value) || ""
+    }
+    applyFilter()
+  })
+}
+if ($("alertFilterReset")) {
+  $("alertFilterReset").addEventListener("click", () => {
+    alertFilters = { ip: "", scenario: "", country: "", origin: "" }
+    ;["alertFilterIp", "alertFilterScenario", "alertFilterCountry", "alertFilterOrigin"].forEach((id) => {
+      if ($(id)) $(id).value = ""
+    })
+    applyFilter()
+  })
+}
+if ($("hideExpiredDecisions")) {
+  $("hideExpiredDecisions").addEventListener("change", (ev) => {
+    hideExpiredDecisions = !!ev.target.checked
+    applyFilter()
+  })
+}
+if ($("exportAlertsCsv")) {
+  $("exportAlertsCsv").onclick = () => {
+    const rows = filteredAlerts(cache.alerts).map((a) => ({
+      when: fmtTime(a.created_at),
+      ip: ipOf(a),
+      country: countryOf(a),
+      as: asOf(a),
+      scenario: scenarioOf(a),
+      origin: originOf(a),
+      events: eventsOf(a),
+      id: a.id != null ? a.id : ""
+    }))
+    exportCsv("waf-alerts.csv", rows, ["when", "ip", "country", "as", "scenario", "origin", "events", "id"])
+  }
+}
+if ($("exportDecisionsCsv")) {
+  $("exportDecisionsCsv").onclick = () => {
+    const rows = (cache.decisions || []).filter((d) => !(hideExpiredDecisions && decisionExpired(d))).map((d) => ({
+      ip: d.value || d.ip || "",
+      origin: d.origin || "",
+      type: d.type || d.action || "ban",
+      scenario: d.scenario || d.reason || "",
+      until: d.until || d.duration || ""
+    }))
+    exportCsv("waf-decisions.csv", rows, ["ip", "origin", "type", "scenario", "until"])
+  }
+}
 $("filterForm").addEventListener("submit", async (ev) => {
   ev.preventDefault()
   const fd = new FormData(ev.target)
@@ -1532,6 +1682,12 @@ document.addEventListener("click", (ev) => {
   if (dossierEl) {
     const dip = dossierEl.getAttribute("data-dossier")
     if (dip) showIpDossier(dip)
+  }
+  const inspectEl = ev.target && ev.target.closest && ev.target.closest("[data-inspect]")
+  if (inspectEl) {
+    const idx = Number(inspectEl.getAttribute("data-inspect-idx"))
+    const list = filteredAlerts(cache.alerts)
+    if (!Number.isNaN(idx) && list[idx]) showAlertInspect(list[idx])
   }
   const ip = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-unban")
   if (ip) unban(ip)

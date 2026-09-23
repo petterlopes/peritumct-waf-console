@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.6 — 2026-09-23
+
+- CSO screenshot pass vs CrowdSec Manager: richer **Alerts** analysis (IP/scenario/country/origin filters on the LAPI sample, top scenarios/countries, AS/origin columns, inspect dialog, Export CSV)
+- **Decisions**: hide-expired toggle + Export CSV; ban remains ban-only (never captcha)
+- Docs: [COMPARISON.md](docs/COMPARISON.md) updated with screenshot-grounded integrate/reject matrix
+
 ## 2.0.5 — 2026-09-23
 
 - CSO complement from [CrowdSec Manager](https://github.com/hhftechnology/crowdsec_manager) review (safe subset only):
