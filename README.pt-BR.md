@@ -12,10 +12,10 @@ Interface de operações para instalações **locais** do [CrowdSec](https://git
 
 | | |
 |--|--|
-| **Console** | **2.0.4** · GPL-3.0-or-later · [NOTICE](NOTICE) |
+| **Console** | **2.0.5** · GPL-3.0-or-later · [NOTICE](NOTICE) |
 | **Engine** | CrowdSec **v1.8.1** (MIT, processo separado) |
 | **Artigo (EN)** | [Local control of CrowdSec…](https://periciacomputacional.com/peritumct-waf-console-local-control-of-crowdsec-powered-by-a-rust-backend) |
-| **Docs EN** | [PRODUCT](docs/PRODUCT.md) · [MARKETING](docs/MARKETING.md) · [README.md](README.md) |
+| **Docs EN** | [PRODUCT](docs/PRODUCT.md) · [COMPARISON](docs/COMPARISON.md) · [MARKETING](docs/MARKETING.md) · [README.md](README.md) |
 
 ## Porque existe
 
@@ -54,7 +54,7 @@ Para **políticas e allowlists**, use o Compose de admin (`pid: host`, `user: "0
 - Expor LAPI/AppSec/console na Internet pública
 - Alegar exclusividade “primeiro do mundo” — o diferencial é a **combinação** local + Rust + FQDN + OWASP/MITRE
 
-## Honestidade operacional (2.0.4+)
+## Honestidade operacional (2.0.5+)
 
 - **Fail-closed:** metadado CSO na consola; validar no bouncer/remediação
 - **Dashboard 24h:** `since=24h` + filtro; amostra limitada divulga `sample.capped`

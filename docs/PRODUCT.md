@@ -36,6 +36,7 @@ If the console UI is unavailable, that alone does **not** redefine the protectio
 - Dashboard **24h** uses LAPI `since=24h` plus a client window filter; when `WAF_ALERTS_LIMIT` caps the sample, `sample.capped` / `window_label` disclose incomplete coverage (2.0.4+).
 - `fail_closed` in the console is **CSO-enforced metadata** (always ON, not mutable). Validate real fail-closed on the remediation component.
 - No built-in operator login / MFA / RBAC — protect `/waf` with overlay VPN, Teleport, or IdP-aware admin middleware; keep `/waf` **off** the CrowdSec bouncer.
+- **2.0.5 complements** (inspired by [CrowdSec Manager](https://github.com/hhftechnology/crowdsec_manager), CSO-filtered): IP dossier, read-only bouncers, repeated-offender sample — see [COMPARISON.md](COMPARISON.md). No docker.sock, container shell, Traefik writes, or captcha.
 
 ## Editorial article
 

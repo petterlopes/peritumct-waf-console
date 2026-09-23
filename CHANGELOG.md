@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.5 — 2026-09-23
+
+- CSO complement from [CrowdSec Manager](https://github.com/hhftechnology/crowdsec_manager) review (safe subset only):
+  - **IP dossier** — `GET /api/ip?ip=` + Decisions UI (local decisions, alert sample, allowlist; no Traefik/GeoLite/SaaS)
+  - **Bouncers read-only** — `GET /api/bouncers` / Engine inventory via `cscli` (soft-fail)
+  - **Repeated offenders** — overview rollup + `GET /api/offenders` from the capped 24h LAPI sample
+- Docs: [COMPARISON.md](docs/COMPARISON.md) — integrate / adapt / reject matrix (no docker.sock, no shell, no Traefik writes, no captcha)
+
 ## 2.0.4 — 2026-09-23
 
 - CSO clarity: `fail_closed` is documented as **policy metadata** (`fail_closed_mode=cso_enforced`, not mutable) — UI no longer treats it as a live TCP probe

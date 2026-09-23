@@ -350,6 +350,12 @@
           </div>
         </article>
 
+        <article class="card">
+          <div class="card-head"><h2 data-i18n="offenders.title">Repeated offenders</h2><span class="tag tracking" data-i18n="tag.sample">Sample</span></div>
+          <div id="offendersBody" class="stack"></div>
+          <p class="hint" data-i18n="offenders.hint">Top source IPs in the current LAPI alert sample (since=24h, capped). Click an IP for a local dossier.</p>
+        </article>
+
         <article class="card glow-cyan" id="mitreOverviewCard" role="button" tabindex="0">
           <div class="card-head"><h2 data-i18n="nav.mitre">MITRE</h2><span class="tag active">ATT&amp;CK</span></div>
           <div id="mitreOverview" class="mitre-grid"></div>
@@ -499,6 +505,18 @@
             <tbody id="decisionsBody"></tbody>
           </table>
         </div>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="dossier.title">IP dossier</h2>
+          <form id="dossierForm" class="inline">
+            <label class="sr-only" for="dossierIp" data-i18n="dossier.ph">IP to inspect</label>
+            <input id="dossierIp" name="ip" data-i18n-placeholder="dossier.ph" placeholder="IP to inspect" autocomplete="off">
+            <button type="submit" data-i18n="dossier.lookup">Lookup</button>
+          </form>
+        </div>
+        <p class="hint" data-i18n="dossier.hint">Local LAPI/cscli view: matching decisions, recent alerts, and allowlist membership. No GeoLite, Traefik whitelist rewrite, or CrowdSec Console SaaS.</p>
+        <pre id="dossierPre" class="code hidden" aria-live="polite"></pre>
       </article>
     </section>
 
@@ -750,6 +768,7 @@
             <li data-i18n="engine.p8">Mutations that change fail-closed/CRS in-band: none (forbidden in the UI)</li>
             <li data-i18n="engine.p9">Operator control: per-site policies, CIDR allowlist, IP ban/unban</li>
             <li data-i18n="engine.p10">OWASP Top 10:2021 correlation is local; CTI connectors export files only (no outbound push)</li>
+            <li data-i18n="engine.p11">Bouncer inventory is read-only (cscli). No docker.sock, container shell, or Traefik dynamic writes.</li>
           </ul>
         </article>
         <article class="card">
@@ -757,6 +776,16 @@
           <pre id="enginePre" class="code"></pre>
         </article>
       </div>
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="bouncers.title">Bouncers</h2><span class="tag" data-i18n="tag.readonly">Read-only</span></div>
+        <p class="hint" data-i18n="bouncers.hint">Inventory from cscli. Console never enrolls SaaS Console or rewrites Traefik from this list.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.name">Name</th><th data-i18n="th.type">Type</th><th data-i18n="th.ip">IP</th><th data-i18n="th.last">Last pull</th><th data-i18n="th.valid">Valid</th></tr></thead>
+            <tbody id="bouncersBody"></tbody>
+          </table>
+        </div>
+      </article>
     </section>
 
     <section id="view-credits" class="view hidden">

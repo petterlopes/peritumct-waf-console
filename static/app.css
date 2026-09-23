@@ -346,10 +346,31 @@ button[type="submit"] { background: #143445; color: var(--cyan); }
 .rta-item .ring-label { font-size: 11px; }
 .ip-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ip-chip {
-  min-height: 42px; border-radius: 12px; border: 1px solid var(--stroke);
-  background: #0f1728; display: grid; place-items: center;
-  font-size: 10px; color: var(--muted); text-align: center; padding: 4px;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: #0f1728;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px;
+  cursor: pointer;
+  width: 100%;
 }
+button.ip-chip:hover { border-color: var(--cyan, #3ee0ff); color: var(--text); }
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+button.linkish:hover code { color: var(--cyan, #3ee0ff); }
 
 .land { fill: #14314f; stroke: #2a5d86; stroke-width: 0.45; }
 .ocean { fill: url(#oceanGrad); }

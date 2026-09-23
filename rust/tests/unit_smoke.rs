@@ -123,3 +123,29 @@ fn dashboard_build_marks_sample_and_window() {
     assert!(actions.iter().any(|a| a["id"] == "fail-closed-cso"));
 }
 
+#[test]
+fn repeated_offenders_ranks_sources() {
+    use waf_console::lapi::repeated_offenders;
+    let alerts = vec![
+        json!({"scenario": "http-probing", "source": {"ip": "198.51.100.10"}}),
+        json!({"scenario": "http-probing", "source": {"ip": "198.51.100.10"}}),
+        json!({"scenario": "ssh-bf", "source": {"ip": "198.51.100.10"}}),
+        json!({"scenario": "http-probing", "source": {"value": "203.0.113.5"}}),
+    ];
+    let out = repeated_offenders(&alerts, 8);
+    assert_eq!(out["ok"], true);
+    assert_eq!(out["sample_size"], 4);
+    let items = out["items"].as_array().expect("items");
+    assert_eq!(items[0]["ip"], "198.51.100.10");
+    assert_eq!(items[0]["events"], 3);
+    assert_eq!(items[1]["ip"], "203.0.113.5");
+    assert_eq!(items[1]["events"], 1);
+}
+
+#[test]
+fn ip_dossier_rejects_invalid_ip() {
+    use waf_console::lapi::ip_dossier;
+    assert!(ip_dossier("not-an-ip").is_err());
+    assert!(ip_dossier("").is_err());
+}
+

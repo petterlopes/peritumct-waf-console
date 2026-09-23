@@ -5,6 +5,7 @@
 | [README.md](../README.md) | EN | GitHub landing + screenshots |
 | [README.pt-BR.md](../README.pt-BR.md) | PT-BR | Landing (Portuguese) |
 | [PRODUCT.md](PRODUCT.md) | EN | Positioning, boundaries, article link |
+| [COMPARISON.md](COMPARISON.md) | EN | CrowdSec Manager vs PeritumCT (CSO integrate/reject) |
 | [MARKETING.md](MARKETING.md) | EN / PT-BR | GitHub About, LinkedIn, social checklist |
 | [media/README.md](media/README.md) | EN | Screenshot & social asset index |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | EN | Modules, data flow, security boundaries |
@@ -22,4 +23,4 @@
 
 **Editorial article (EN):** https://periciacomputacional.com/peritumct-waf-console-local-control-of-crowdsec-powered-by-a-rust-backend
 
-**CrowdSec engine pin:** v1.8.1 · **Console:** 2.0.4 (Rust **1.98.1**, GPL-3.0-or-later)
+**CrowdSec engine pin:** v1.8.1 · **Console:** 2.0.5 (Rust **1.98.1**, GPL-3.0-or-later)

@@ -316,13 +316,81 @@ function renderOverview(data) {
   })
   const pad = ips.slice(0, 9)
   while (pad.length < 9) pad.push("—")
-  $("ipPad").innerHTML = pad.map((ip) => `<div class="ip-chip">${esc(ip)}</div>`).join("")
+  $("ipPad").innerHTML = pad.map((ip) => {
+    if (ip === "—") return `<div class="ip-chip">—</div>`
+    return `<button type="button" class="ip-chip" data-dossier="${esc(ip)}" title="${esc(t("dossier.lookup", "Lookup"))}">${esc(ip)}</button>`
+  }).join("")
+  renderOffenders(data.offenders)
   const map = data.map || (cache.coverage && cache.coverage.map) || { points: [] }
   renderMap($("mapMini"), map, { interactive: false })
   if ($("mapMiniNote")) $("mapMiniNote").textContent = t("map.note")
   setLive(!data.error && eng.lapi_listen, data.error ? "LAPI: " + data.error : t("live.lapi_up"))
   renderGaPrecision(cache.correlation, "gaOverview")
   if (cache.correlation) paintMitreOverview(cache.correlation)
+}
+
+function renderOffenders(payload) {
+  const node = $("offendersBody")
+  if (!node) return
+  const items = (payload && payload.items) || []
+  if (!items.length) {
+    node.innerHTML = "<p class='hint'>" + t("offenders.empty", "No repeated sources in this sample") + "</p>"
+    return
+  }
+  node.innerHTML = items.map((it) => {
+    const scen = ((it.scenarios || []).map((s) => s.scenario).filter(Boolean).slice(0, 2).join(", ")) || "—"
+    return `<div class="stack-row"><button type="button" class="linkish" data-dossier="${esc(it.ip)}"><code>${esc(it.ip)}</code></button><b>${esc(it.events)} · ${esc(scen)}</b></div>`
+  }).join("")
+}
+
+function renderBouncers(payload) {
+  const node = $("bouncersBody")
+  if (!node) return
+  const items = normalizeBouncerItems(payload)
+  node.innerHTML = items.map((b) => {
+    const name = b.name || b.Name || "—"
+    const typ = b.type || b.Type || b.ip_type || "—"
+    const ip = b.ip_address || b.ip || b.IpAddress || "—"
+    const last = b.last_pull || b.last_seen || b.LastPull || b.last_pull_ago || "—"
+    const valid = b.valid === true || b.Valid === true || b.valid === "true"
+    return `<tr>
+      <td>${esc(name)}</td>
+      <td>${esc(typ)}</td>
+      <td><code>${esc(ip)}</code></td>
+      <td>${esc(last)}</td>
+      <td>${valid ? "OK" : "—"}</td>
+    </tr>`
+  }).join("") || `<tr><td colspan="5">${esc(t("bouncers.empty", "No bouncers listed (cscli unavailable or empty)"))}</td></tr>`
+}
+
+function normalizeBouncerItems(payload) {
+  if (!payload) return []
+  const raw = payload.items || payload.bouncers || payload
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === "object") return Object.values(raw)
+  return []
+}
+
+async function showIpDossier(ip) {
+  if (!ip || ip === "—") return
+  const input = $("dossierIp")
+  if (input) input.value = ip
+  const pre = $("dossierPre")
+  try {
+    const data = await api("/api/ip?ip=" + encodeURIComponent(ip))
+    if (pre) {
+      pre.classList.remove("hidden")
+      pre.textContent = JSON.stringify(data, null, 2)
+    }
+    showView("decisions")
+    setLive(true, t("dossier.ready", "IP dossier loaded"))
+  } catch (err) {
+    if (pre) {
+      pre.classList.remove("hidden")
+      pre.textContent = String(err.message || err)
+    }
+    setLive(false, String(err.message || err))
+  }
 }
 
 function renderMapView(payload) {
@@ -483,7 +551,7 @@ function renderDecisions(items) {
   $("decisionsBody").innerHTML = filtered.map((d) => {
     const ip = d.value || d.ip || "—"
     return `<tr>
-      <td><code>${esc(ip)}</code></td>
+      <td><button type="button" class="linkish" data-dossier="${esc(ip)}"><code>${esc(ip)}</code></button></td>
       <td>${esc(d.origin || "—")}</td>
       <td>${esc(d.type || d.action || "ban")}</td>
       <td>${esc(d.scenario || d.reason || "—")}</td>
@@ -495,13 +563,16 @@ function renderDecisions(items) {
 
 function renderAlerts(items) {
   const filtered = (items || []).filter((a) => matchesFilter([ipOf(a), scenarioOf(a), countryOf(a), hostOf(a)].join(" ")) && geoMatch(countryOf(a)) && hostMatch(a))
-  $("alertsBody").innerHTML = filtered.map((a) => `<tr>
+  $("alertsBody").innerHTML = filtered.map((a) => {
+    const ip = ipOf(a)
+    return `<tr>
     <td>${esc(fmtTime(a.created_at))}</td>
-    <td><code>${esc(ipOf(a))}</code></td>
+    <td><button type="button" class="linkish" data-dossier="${esc(ip)}"><code>${esc(ip)}</code></button></td>
     <td>${esc(countryOf(a) || "—")}</td>
     <td>${esc(scenarioOf(a))}</td>
     <td>${esc(a.capacity || (a.decisions ? a.decisions.length : "—"))}</td>
-  </tr>`).join("") || `<tr><td colspan="5">${t("alerts.empty")}</td></tr>`
+  </tr>`
+  }).join("") || `<tr><td colspan="5">${t("alerts.empty")}</td></tr>`
 }
 
 function renderOwasp(data) {
@@ -1252,6 +1323,7 @@ async function loadCore() {
   renderDomains(domains)
   applyFilter()
   $("enginePre").textContent = JSON.stringify(engine, null, 2)
+  renderBouncers(engine.bouncers || {})
   await loadDashboard()
 }
 
@@ -1400,6 +1472,13 @@ $("banForm").addEventListener("submit", async (ev) => {
   })
   await loadAll()
 })
+if ($("dossierForm")) {
+  $("dossierForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault()
+    const ip = new FormData(ev.target).get("ip")
+    await showIpDossier(ip)
+  })
+}
 $("filterForm").addEventListener("submit", async (ev) => {
   ev.preventDefault()
   const fd = new FormData(ev.target)
@@ -1449,6 +1528,11 @@ $("allowDelForm").addEventListener("submit", async (ev) => {
   await loadAll()
 })
 document.addEventListener("click", (ev) => {
+  const dossierEl = ev.target && ev.target.closest && ev.target.closest("[data-dossier]")
+  if (dossierEl) {
+    const dip = dossierEl.getAttribute("data-dossier")
+    if (dip) showIpDossier(dip)
+  }
   const ip = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-unban")
   if (ip) unban(ip)
   const edit = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-fedit")

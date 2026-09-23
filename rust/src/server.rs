@@ -44,6 +44,8 @@ static HEAVY_GET: &[&str] = &[
     "/api/correlation/misp",
     "/api/correlation/thehive",
     "/api/overview",
+    "/api/ip",
+    "/api/offenders",
 ];
 
 #[derive(Clone)]
@@ -467,8 +469,21 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
                 "appsec".into(),
                 rules.get("appsec").cloned().unwrap_or(json!({})),
             );
+            eng.insert("bouncers".into(), lapi::bouncers_status());
             json_ok(Value::Object(eng))
         }
+        "/api/bouncers" => json_ok(lapi::bouncers_status()),
+        "/api/ip" => {
+            let ip = qs.get("ip").cloned().unwrap_or_default();
+            match lapi::ip_dossier(&ip) {
+                Ok(v) => json_ok(v),
+                Err(e) => json_err(StatusCode::BAD_REQUEST, e.to_string()),
+            }
+        }
+        "/api/offenders" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
+            Ok(alerts) => json_ok(lapi::repeated_offenders(&alerts, 16)),
+            Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
+        },
         "/api/map" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
             Ok(alerts) => {
                 let map = lapi::build_map(&alerts);

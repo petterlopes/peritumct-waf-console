@@ -1333,6 +1333,7 @@ pub fn scrape_metrics() -> Value {
 
 pub fn check_allowlist_ip(ip: &str) -> Result<Value> {
     let addr: IpAddr = ip.parse().map_err(|_| anyhow!("invalid ip"))?;
+    let ip = addr.to_string();
     let (status_code, body) = lapi_soft("GET", &format!("/v1/allowlists/check/{ip}"), &[]);
     let operators = extract_cidrs(&read_text(
         &config_root()
@@ -1357,6 +1358,143 @@ pub fn check_allowlist_ip(ip: &str) -> Result<Value> {
         "parser_match": in_parser,
         "parser_cidrs": operators,
     }))
+}
+
+fn alert_source_ip(alert: &Value) -> Option<String> {
+    let obj = alert.as_object()?;
+    let src = source_of(obj);
+    src.get("ip")
+        .or_else(|| src.get("value"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Aggregate local decisions + recent alerts + allowlist membership for one IP.
+/// Complements CrowdSec Manager–style “IP security check” without docker.sock / Traefik writes.
+pub fn ip_dossier(ip: &str) -> Result<Value> {
+    let addr: IpAddr = ip.parse().map_err(|_| anyhow!("invalid ip"))?;
+    let ip = addr.to_string();
+    let (decisions, dec_err) = fetch_local_decisions();
+    let matching_decisions: Vec<Value> = decisions
+        .into_iter()
+        .filter(|d| {
+            d.get("value")
+                .or_else(|| d.get("ip"))
+                .and_then(|v| v.as_str())
+                .map(|v| v == ip)
+                .unwrap_or(false)
+        })
+        .take(40)
+        .collect();
+    let alerts = fetch_alerts(alerts_fetch_limit(200)).unwrap_or_default();
+    let mut matching_alerts: Vec<Value> = alerts
+        .into_iter()
+        .filter(|a| alert_source_ip(a).as_deref() == Some(ip.as_str()))
+        .collect();
+    let alerts_count = matching_alerts.len();
+    matching_alerts.truncate(40);
+    let allow = check_allowlist_ip(&ip)?;
+    Ok(json!({
+        "ok": true,
+        "ip": ip,
+        "decisions": matching_decisions,
+        "decisions_error": dec_err,
+        "alerts": matching_alerts,
+        "alerts_count": alerts_count,
+        "allowlist": allow,
+        "note": "Local LAPI/cscli view only. Does not query GeoLite, Traefik whitelist, or CrowdSec Console SaaS.",
+    }))
+}
+
+/// Top source IPs in the current alert sample (honest ops rollup — not a full census).
+pub fn repeated_offenders(alerts: &[Value], limit: usize) -> Value {
+    let mut counts: HashMap<String, i64> = HashMap::new();
+    let mut scenarios: HashMap<String, HashMap<String, i64>> = HashMap::new();
+    for alert in alerts {
+        let Some(ip) = alert_source_ip(alert) else {
+            continue;
+        };
+        *counts.entry(ip.clone()).or_default() += 1;
+        let scenario = alert
+            .get("scenario")
+            .and_then(|v| v.as_str())
+            .unwrap_or("—")
+            .chars()
+            .take(80)
+            .collect::<String>();
+        *scenarios
+            .entry(ip)
+            .or_default()
+            .entry(scenario)
+            .or_default() += 1;
+    }
+    let mut rows: Vec<(String, i64)> = counts.into_iter().collect();
+    rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    let limit = limit.clamp(1, 50);
+    let items: Vec<Value> = rows
+        .into_iter()
+        .take(limit)
+        .map(|(ip, count)| {
+            let mut top_scen = scenarios
+                .get(&ip)
+                .map(|m| {
+                    let mut v: Vec<_> = m.iter().collect();
+                    v.sort_by(|a, b| b.1.cmp(a.1));
+                    v.into_iter()
+                        .take(3)
+                        .map(|(k, c)| json!({"scenario": k, "count": c}))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if top_scen.is_empty() {
+                top_scen = vec![];
+            }
+            json!({
+                "ip": ip,
+                "events": count,
+                "scenarios": top_scen,
+            })
+        })
+        .collect();
+    json!({
+        "ok": true,
+        "items": items,
+        "sample_size": alerts.len(),
+        "note": "Derived from the current LAPI alert sample (since=24h, capped). Not a complete traffic census.",
+    })
+}
+
+/// Read-only bouncer inventory via cscli (soft-fail when binary unavailable).
+pub fn bouncers_status() -> Value {
+    match control::cscli(&["bouncers", "list", "-o", "json"]) {
+        Ok(text) => {
+            let parsed: Value = serde_json::from_str(&text).unwrap_or_else(|_| json!([]));
+            let items = if let Some(arr) = parsed.as_array() {
+                Value::Array(arr.clone())
+            } else if let Some(obj) = parsed.as_object() {
+                obj.get("bouncers")
+                    .or_else(|| obj.get("items"))
+                    .cloned()
+                    .unwrap_or(parsed)
+            } else {
+                parsed
+            };
+            json!({
+                "ok": true,
+                "source": "cscli",
+                "items": items,
+                "note": "Read-only. Console never enrolls SaaS Console or rewrites Traefik from this inventory.",
+            })
+        }
+        Err(e) => json!({
+            "ok": false,
+            "source": "cscli",
+            "items": [],
+            "error": e.to_string().chars().take(400).collect::<String>(),
+            "note": "Set CROWDSEC_CSCLI or NOMAD_BIN to list bouncers.",
+        }),
+    }
 }
 
 pub fn add_ban(payload: &Map<String, Value>) -> Result<Value> {
@@ -1447,6 +1585,7 @@ pub fn overview() -> Value {
         Ok(a) => alerts = a,
         Err(e) => err = Some(e.to_string()),
     }
+    let offenders = repeated_offenders(&alerts, 8);
     let hosts = catalog::in_scope_hosts();
     let domains = probe_hosts(&hosts, "127.0.0.1");
     let ok_hosts = domains
@@ -1475,6 +1614,7 @@ pub fn overview() -> Value {
         "decisions": prefer_local_decisions(&decisions, 8),
         "map": build_map(&alerts),
         "alerts": alerts.into_iter().take(8).collect::<Vec<_>>(),
+        "offenders": offenders,
         "domains": domains,
         "generated_at": now_unix(),
     })
