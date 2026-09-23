@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # CSO deploy pin bump + FORCE update for expertsforensic waf-admin → 2.0.9
 set -euo pipefail
-PIN="2.0.9"
+PIN="2.0.10"
 python3 - <<'PY'
 from pathlib import Path
 import re
-pin = "2.0.9"
+pin = "2.0.10"
 for p in [
     Path("/root/waf-admin/docker-compose.yml"),
     Path("/srv/waf-admin/docker-compose.yml"),
