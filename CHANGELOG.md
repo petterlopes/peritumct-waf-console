@@ -5,6 +5,7 @@
 - Toolchain: pin **rustc 1.98.1** (stable 2026-09-03 — vtable miscompilation fix); MSRV `1.98.1`; Docker `rust:1.98.1-bookworm`
 - License: **GPL-3.0-or-later** (Linux-like copyleft; replaces MIT) — see `LICENSE` / `NOTICE`
 - Production performance: Cargo `[profile.release]` LTO + `codegen-units=1` + `panic=abort` (LTO via Cargo profile only — not global `RUSTFLAGS`, which breaks dep builds with `embed-bitcode=no`); default `TOKIO_WORKER_THREADS=4` in image
+- CI: Trivy scanner pin **[v0.74.0](https://github.com/aquasecurity/trivy/releases/tag/v0.74.0)** via `aquasecurity/trivy-action@v0.36.0` (`version: v0.74.0`)
 
 ## 2.0.2 — 2026-09-22
 
