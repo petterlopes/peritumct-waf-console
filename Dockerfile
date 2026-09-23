@@ -7,7 +7,7 @@ FROM rust:1.98.1-bookworm AS builder
 WORKDIR /src
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse \
     CARGO_TERM_COLOR=never \
-    RUSTFLAGS="-C opt-level=3 -C codegen-units=1 -C strip=symbols -C lto=fat"
+    RUSTFLAGS="-C opt-level=3 -C codegen-units=1 -C strip=symbols"
 RUN apt-get update \
  && apt-get install -y --no-install-recommends pkg-config libssl-dev \
  && rm -rf /var/lib/apt/lists/*
