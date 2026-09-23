@@ -1,12 +1,13 @@
 # Multi-stage Rust build for peritumct-waf-console (production Linux).
 # Homologated: Docker / Podman. Bind loopback only (WAF_BIND=127.0.0.1).
-# Builder pin: rustc >= 1.88 (icu/idna lockfile). Python rollback: legacy/python/.
+# Builder pin: rustc 1.98.1 (stable, 2026-09-03 — vtable miscompile fix).
+# Python rollback: legacy/python/.
 
-FROM rust:1.88-bookworm AS builder
+FROM rust:1.98.1-bookworm AS builder
 WORKDIR /src
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse \
     CARGO_TERM_COLOR=never \
-    RUSTFLAGS="-C opt-level=3 -C codegen-units=1 -C strip=symbols"
+    RUSTFLAGS="-C opt-level=3 -C codegen-units=1 -C strip=symbols -C lto=fat"
 RUN apt-get update \
  && apt-get install -y --no-install-recommends pkg-config libssl-dev \
  && rm -rf /var/lib/apt/lists/*
@@ -27,10 +28,11 @@ COPY static /app/static
 ENV WAF_BIND=127.0.0.1 \
     WAF_PORT=18990 \
     WAF_STATIC=/app/static \
-    WAF_APP_VERSION=2.0.2 \
+    WAF_APP_VERSION=2.0.3 \
     WAF_APP_PRODUCT=waf-console \
     RUST_LOG=warn \
-    RUST_BACKTRACE=0
+    RUST_BACKTRACE=0 \
+    TOKIO_WORKER_THREADS=4
 EXPOSE 18990
 USER waf
 CMD ["/app/waf-console"]

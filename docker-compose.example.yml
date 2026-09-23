@@ -6,14 +6,14 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:2.0.2
+    image: peritumct-waf-console:2.0.3
     container_name: waf-console
     network_mode: host
     environment:
       WAF_BIND: "127.0.0.1"
       WAF_PORT: "18990"
       WAF_STATIC: /app/static
-      WAF_APP_VERSION: "2.0.2"
+      WAF_APP_VERSION: "2.0.3"
       WAF_APP_PRODUCT: "waf-console"
       RUST_LOG: "warn"
       TOKIO_WORKER_THREADS: "4"

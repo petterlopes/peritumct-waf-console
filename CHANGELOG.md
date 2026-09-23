@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3 — 2026-09-22
+
+- Toolchain: pin **rustc 1.98.1** (stable 2026-09-03 — vtable miscompilation fix); MSRV `1.98.1`; Docker `rust:1.98.1-bookworm`
+- License: **GPL-3.0-or-later** (Linux-like copyleft; replaces MIT) — see `LICENSE` / `NOTICE`
+- Production performance: Cargo `[profile.release]` LTO + `codegen-units=1` + `panic=abort`; builder `RUSTFLAGS` LTO fat; default `TOKIO_WORKER_THREADS=4` in image
+
 ## 2.0.2 — 2026-09-22
 
 - Fix: LAPI machine login — normalize YAML CRLF/BOM, explicit JSON body, User-Agent, accept legacy `code` JWT field

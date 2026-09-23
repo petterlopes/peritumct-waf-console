@@ -1,15 +1,16 @@
 # Termos de uso
 
-Vigente em 17 de setembro de 2026.
+Vigente em 22 de setembro de 2026.
 
 Ao abrir este console você confirma que é um **operador autorizado** do engine
 CrowdSec ao qual ele se conecta. O acesso não autorizado é proibido.
 
 ## Licença de software
 
-O código do console é MIT (Copyright (c) 2026 PeritumCT). O CrowdSec permanece
-MIT no projeto upstream. Estes termos regem a **operação de uma instância
-implantada**; não substituem a licença MIT do código. Ver `LICENSE` e `NOTICE`.
+O código do console é **GNU GPL-3.0-or-later** (Copyright (c) 2026 PeritumCT) —
+copyleft no espírito do Linux, não MIT. O CrowdSec permanece MIT no projeto
+upstream. Estes termos regem a **operação de uma instância implantada**; não
+substituem a GPL do código. Ver `LICENSE` e `NOTICE`.
 
 ## Uso aceitável
 
@@ -34,13 +35,13 @@ seus próprios termos.
 ## Sem garantia
 
 O SOFTWARE É FORNECIDO COMO ESTÁ, SEM GARANTIA DE QUALQUER TIPO, conforme a
-licença MIT. AppSec fail-closed pode bloquear tráfego quando o engine está
+GPL-3.0. AppSec fail-closed pode bloquear tráfego quando o engine está
 inacessível. Os operadores aceitam esse risco.
 
 ## Lei aplicável
 
 Estes termos operacionais são interpretados de acordo com as leis do Brasil, sem
-prejuízo da licença MIT.
+prejuízo da licença GPL-3.0-or-later.
 
 Contato: https://periciacomputacional.com/sobre/
 

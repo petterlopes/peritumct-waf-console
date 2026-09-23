@@ -13,7 +13,7 @@ for PERITUM / Perícia Computacional. It is not the CrowdSec cloud dashboard.
 
 ## Software
 
-- PeritumCT WAF Console — MIT License, Copyright (c) 2026 PeritumCT (`LICENSE`)
+- PeritumCT WAF Console — GNU GPL-3.0-or-later, Copyright (c) 2026 PeritumCT (`LICENSE`)
 - CrowdSec engine (LAPI + AppSec) — MIT. Upstream:
   https://github.com/crowdsecurity/crowdsec — integration pin **v1.8.1**. See `NOTICE`.
 - World land polygons: Natural Earth 110m (public domain). Map projection: Robinson.

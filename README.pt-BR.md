@@ -7,7 +7,7 @@ Console open-source para um engine [CrowdSec](https://github.com/crowdsecurity/c
 
 Documentação principal em inglês: [README.md](README.md) · índice: [docs/README.md](docs/README.md).
 
-**Runtime 2.x: Rust** (`rust/`). Python 1.x em `legacy/python/` (rollback).
+**Runtime 2.x: Rust 1.98.1** (`rust/`, GPL-3.0-or-later). Python 1.x em `legacy/python/` (rollback).
 
 ## Plataformas homologadas
 

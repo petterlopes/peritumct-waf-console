@@ -1,10 +1,10 @@
 [package]
 name = "waf-console"
-version = "2.0.2"
+version = "2.0.3"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.98.1"
 description = "CrowdSec WAF operator console (Rust) — loopback API + static UI"
-license = "MIT"
+license = "GPL-3.0-or-later"
 readme = "../README.md"
 
 [dependencies]
@@ -52,3 +52,11 @@ path = "tests/unit_smoke.rs"
 [[test]]
 name = "parity_smoke"
 path = "tests/parity_smoke.rs"
+
+# Production: maximum runtime performance + smaller binary (matches Dockerfile RUSTFLAGS).
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+panic = "abort"

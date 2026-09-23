@@ -5,10 +5,10 @@ Open-source operator console for a local [CrowdSec](https://github.com/crowdsecu
 
 **Default language: English.** Brazilian Portuguese (`pt-BR`) is the secondary UI locale.
 
-- License (this console): [MIT](LICENSE) · Copyright (c) 2026 PeritumCT
-- CrowdSec engine: [MIT](https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file) — see [NOTICE](NOTICE)
+- License (this console): [GPL-3.0-or-later](LICENSE) · Copyright (c) 2026 PeritumCT — Linux-like copyleft (not MIT); see [NOTICE](NOTICE)
+- CrowdSec engine: [MIT](https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file) — separate process; see [NOTICE](NOTICE)
 - Pin tested with CrowdSec **v1.8.1**: https://github.com/crowdsecurity/crowdsec/releases#release-v1.8.1
-- **Current console:** 2.0.0 (Rust) · legacy Python under `legacy/python/`
+- **Current console:** 2.0.3 (Rust **1.98.1**) · legacy Python under `legacy/python/`
 
 Portuguese README: [README.pt-BR.md](README.pt-BR.md) · Docs index: [docs/README.md](docs/README.md)
 

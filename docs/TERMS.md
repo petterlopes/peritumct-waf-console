@@ -1,16 +1,16 @@
 # Terms of use
 
-Effective 17 September 2026.
+Effective 22 September 2026.
 
 By opening this console you confirm you are an **authorized operator** of the
 CrowdSec engine it talks to. Unauthorized access is forbidden.
 
 ## Software license
 
-The console source is MIT (Copyright (c) 2026 PeritumCT). CrowdSec remains MIT
-from its upstream project. These terms govern **operation of a deployed
-instance**; they do not replace the MIT license for the code. See `LICENSE` and
-`NOTICE`.
+The console source is **GNU GPL-3.0-or-later** (Copyright (c) 2026 PeritumCT) —
+Linux-like copyleft, not MIT. CrowdSec remains MIT from its upstream project.
+These terms govern **operation of a deployed instance**; they do not replace
+the GPL for the code. See `LICENSE` and `NOTICE`.
 
 ## Acceptable use
 
@@ -34,13 +34,13 @@ offered to end users of origin sites. Public sites keep their own terms.
 ## No warranty
 
 THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, as stated in the
-MIT license. Fail-closed AppSec may block traffic when the engine is
-unreachable. Operators accept that risk.
+GPL-3.0. Fail-closed AppSec may block traffic when the engine is unreachable.
+Operators accept that risk.
 
 ## Governing law
 
 These operational terms are interpreted under the laws of Brazil, without
-prejudice to the MIT license.
+prejudice to the GPL-3.0-or-later license.
 
 Contact: https://periciacomputacional.com/sobre/
 

@@ -1,8 +1,26 @@
-CrowdSec
-========
+PeritumCT WAF Console — licensing
+=================================
 
-This operator console talks to CrowdSec, an open-source security engine
-licensed under the MIT License.
+This console is free software licensed under the
+**GNU General Public License v3.0 or later** (GPL-3.0-or-later).
+
+Rationale (Linux-like copyleft, not MIT)
+----------------------------------------
+The Linux kernel uses the GPL family (GPL-2.0) so improvements stay free
+software. This operators' console follows the same tradition with
+**GPL-3.0-or-later**: strong copyleft for a userspace application, FSF’s
+current GPL for new projects. Permissive MIT was intentionally rejected for
+this product so derivatives and redistributed binaries remain open source.
+
+Full text: LICENSE
+
+Copyright (c) 2026 PeritumCT
+
+CrowdSec (separate engine)
+==========================
+
+This operator console talks to CrowdSec over HTTP (LAPI / AppSec). CrowdSec
+is a separate MIT-licensed project. API integration is not GPL linking.
 
 Upstream: https://github.com/crowdsecurity/crowdsec
 License tab: https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file
@@ -10,5 +28,3 @@ Release used in integration docs: https://github.com/crowdsecurity/crowdsec/rele
 Full license text: third_party/crowdsec/LICENSE
 
 Copyright (c) 2020-2023 Crowdsec
-
-The WAF console itself is MIT Copyright (c) 2026 PeritumCT — see LICENSE.
