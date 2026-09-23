@@ -35,6 +35,25 @@ fn persist_atomic_write_roundtrip() {
 }
 
 #[test]
+fn parse_simple_yaml_login_password() {
+    use std::io::Write;
+    use waf_console::lapi::parse_simple_yaml;
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("creds.yaml");
+    let password = "a".repeat(64);
+    let mut f = std::fs::File::create(&path).expect("create");
+    write!(
+        f,
+        "url: http://127.0.0.1:18080\r\nlogin: localhost\r\npassword: {password}\r\n"
+    )
+    .expect("write");
+    let data = parse_simple_yaml(&path);
+    assert_eq!(data.get("url").map(String::as_str), Some("http://127.0.0.1:18080"));
+    assert_eq!(data.get("login").map(String::as_str), Some("localhost"));
+    assert_eq!(data.get("password").cloned(), Some(password));
+}
+
+#[test]
 fn ga_density_and_verdict() {
     assert!((ga::density(5, 100) - 0.05).abs() < 0.0001);
     assert_eq!(ga::verdict(0, 10), "clean-traffic");

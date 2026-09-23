@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2 — 2026-09-22
+
+- Fix: LAPI machine login — normalize YAML CRLF/BOM, explicit JSON body, User-Agent, accept legacy `code` JWT field
+- Fix: AppSec config listing ignores `#` comments (no false `crs-inband` from “do not enable” notes)
+- Observability: `/api/health` includes `lapi_creds` lengths/url only (never secrets)
+
 ## 2.0.1 — 2026-09-22
 
 - Fix: Docker builder pin `rust:1.88-bookworm` (lockfile needs rustc ≥1.88; 1.85 broke production builds)

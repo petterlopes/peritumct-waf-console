@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 pub fn app_version() -> String {
-    std::env::var("WAF_APP_VERSION").unwrap_or_else(|_| "2.0.1".into())
+    std::env::var("WAF_APP_VERSION").unwrap_or_else(|_| "2.0.2".into())
 }
 
 pub fn app_product() -> String {

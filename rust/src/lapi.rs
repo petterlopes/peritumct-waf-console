@@ -219,6 +219,7 @@ pub fn probe_workers() -> usize {
 fn http_client() -> Result<reqwest::blocking::Client> {
     reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(15))
+        .user_agent(status::app_name())
         .danger_accept_invalid_certs(false)
         .build()
         .map_err(|e| anyhow!(e))
@@ -226,23 +227,29 @@ fn http_client() -> Result<reqwest::blocking::Client> {
 
 pub fn parse_simple_yaml(path: &Path) -> HashMap<String, String> {
     let mut data = HashMap::new();
-    let Ok(text) = std::fs::read_to_string(path) else {
+    let Ok(bytes) = std::fs::read(path) else {
         return data;
     };
-    for raw in text.lines() {
-        let line = raw.trim();
+    // Normalize CRLF / UTF-8 BOM so host-edited YAML matches Python's splitlines().
+    let text = String::from_utf8_lossy(&bytes);
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    for raw in text.split('\n') {
+        let line = raw.trim().trim_end_matches('\r');
         if line.is_empty() || line.starts_with('#') || !line.contains(':') {
             continue;
         }
         let Some((key, val)) = line.split_once(':') else {
             continue;
         };
-        data.insert(
-            key.trim().to_string(),
-            val.trim()
-                .trim_matches(|c| c == '"' || c == '\'')
-                .to_string(),
-        );
+        let key = key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        let val = val
+            .trim()
+            .trim_end_matches('\r')
+            .trim_matches(|c| c == '"' || c == '\'');
+        data.insert(key.to_string(), val.to_string());
     }
     data
 }
@@ -305,19 +312,10 @@ pub fn lapi_login() -> Result<String> {
             creds_path().display()
         ));
     }
-    let client = http_client()?;
-    let body = json!({"machine_id": login, "password": password});
-    let resp = client
-        .post(format!("{url}/v1/watchers/login"))
-        .json(&body)
-        .timeout(Duration::from_secs(12))
-        .send()
-        .map_err(|e| anyhow!("LAPI login transport: {e}"))?;
-    let status = resp.status();
-    let payload: Value = resp
-        .json()
-        .map_err(|e| anyhow!("LAPI login JSON ({status}): {e}"))?;
-    if !status.is_success() {
+    // Raw HTTP/1.0 login (Python urllib parity). Avoids reqwest edge-cases that
+    // produced empty User-Agent + HTTP 401 against CrowdSec while urllib succeeded.
+    let (status, payload) = watchers_login_raw(&url, &login, &password)?;
+    if !(200..300).contains(&status) {
         let detail = payload
             .get("message")
             .or_else(|| payload.get("error"))
@@ -327,14 +325,19 @@ pub fn lapi_login() -> Result<String> {
             .take(200)
             .collect::<String>();
         return Err(anyhow!(
-            "LAPI login HTTP {} {} {}",
-            status.as_u16(),
+            "LAPI login HTTP {} {} {} (login_len={} pw_len={} url={})",
+            status,
             path_hint(&payload),
-            detail
+            detail,
+            login.len(),
+            password.len(),
+            url
         ));
     }
+    // CrowdSec may return JWT in "token" or legacy "code".
     let token = payload
         .get("token")
+        .or_else(|| payload.get("code"))
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| {
@@ -349,6 +352,76 @@ pub fn lapi_login() -> Result<String> {
     guard.exp = Instant::now() + Duration::from_secs(8 * 60);
     guard.url = Some(url);
     Ok(token)
+}
+
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 8);
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn watchers_login_raw(base: &str, login: &str, password: &str) -> Result<(u16, Value)> {
+    use std::io::{Read, Write};
+    let parsed = url::Url::parse(base).map_err(|e| anyhow!("LAPI url: {e}"))?;
+    let host = parsed.host_str().unwrap_or("127.0.0.1");
+    let port = parsed.port_or_known_default().unwrap_or(80);
+    let body = format!(
+        "{{\"machine_id\":\"{}\",\"password\":\"{}\"}}",
+        json_escape(login),
+        json_escape(password)
+    );
+    let req = format!(
+        "POST /v1/watchers/login HTTP/1.0\r\nHost: {host}:{port}\r\nUser-Agent: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        status::app_name(),
+        body.len(),
+        body
+    );
+    let mut stream = TcpStream::connect_timeout(
+        &format!("{host}:{port}")
+            .parse()
+            .map_err(|e| anyhow!("LAPI addr: {e}"))?,
+        Duration::from_secs(12),
+    )
+    .map_err(|e| anyhow!("LAPI login connect: {e}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(12)))
+        .ok();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(12)))
+        .ok();
+    stream
+        .write_all(req.as_bytes())
+        .map_err(|e| anyhow!("LAPI login write: {e}"))?;
+    let mut buf = Vec::new();
+    stream
+        .read_to_end(&mut buf)
+        .map_err(|e| anyhow!("LAPI login read: {e}"))?;
+    let text = String::from_utf8_lossy(&buf);
+    let mut parts = text.splitn(2, "\r\n\r\n");
+    let header = parts.next().unwrap_or("");
+    let body_text = parts.next().unwrap_or("").trim();
+    let status = header
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(0);
+    let payload = if body_text.is_empty() {
+        json!({})
+    } else {
+        serde_json::from_str(body_text).unwrap_or_else(|_| json!({"raw": body_text.chars().take(400).collect::<String>()}))
+    };
+    Ok((status, payload))
 }
 
 fn path_hint(payload: &Value) -> String {
@@ -629,6 +702,17 @@ pub fn engine_status() -> Value {
         .ok()
         .map(|re| re.is_match(&acquis))
         .unwrap_or(false);
+    let creds = parse_simple_yaml(&creds_path());
+    let url = std::env::var("CROWDSEC_LAPI")
+        .ok()
+        .or_else(|| creds.get("url").cloned())
+        .unwrap_or_else(|| "http://127.0.0.1:18080".into());
+    let login = creds
+        .get("login")
+        .or_else(|| creds.get("machine_id"))
+        .cloned()
+        .unwrap_or_default();
+    let password = creds.get("password").cloned().unwrap_or_default();
     let payload = json!({
         "lapi_listen": tcp_open("127.0.0.1", 18080, 1.2),
         "appsec_listen": tcp_open("127.0.0.1", 7422, 1.2),
@@ -639,6 +723,13 @@ pub fn engine_status() -> Value {
         "include_large_uploads": include_large,
         "creds_present": creds_path().is_file(),
         "bouncer_key_present": !bouncer_key().is_empty(),
+        "lapi_creds": {
+            "path": creds_path().display().to_string(),
+            "login_len": login.len(),
+            "password_len": password.len(),
+            "url": url,
+            "login_is_localhost": login.eq_ignore_ascii_case("localhost"),
+        },
         "version": status::app_name(),
         "locale": {"default": "en", "supported": ["en", "pt-BR"]},
         "runtime": "rust",
@@ -1105,14 +1196,22 @@ pub fn build_rules() -> Value {
             .join("cso-operators.yaml"),
     );
     let listen = yaml_kv(&acquis, "listen_addr");
-    let configs: Vec<String> = Regex::new(r"(crowdsecurity/[a-zA-Z0-9._-]+)")
+    // Ignore YAML comments so "Do not enable crowdsecurity/crs-inband" is not treated as enabled.
+    let acquis_nocomment: String = acquis
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or("").to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut configs: Vec<String> = Regex::new(r"(crowdsecurity/[a-zA-Z0-9._-]+)")
         .ok()
         .map(|re| {
-            re.captures_iter(&acquis)
+            re.captures_iter(&acquis_nocomment)
                 .filter_map(|c| c.get(1).map(|m| m.as_str().to_string()))
                 .collect()
         })
         .unwrap_or_default();
+    configs.sort();
+    configs.dedup();
     json!({
         "profiles": {
             "names": yaml_names(&profiles),

@@ -27,7 +27,7 @@ COPY static /app/static
 ENV WAF_BIND=127.0.0.1 \
     WAF_PORT=18990 \
     WAF_STATIC=/app/static \
-    WAF_APP_VERSION=2.0.1 \
+    WAF_APP_VERSION=2.0.2 \
     WAF_APP_PRODUCT=waf-console \
     RUST_LOG=warn \
     RUST_BACKTRACE=0
