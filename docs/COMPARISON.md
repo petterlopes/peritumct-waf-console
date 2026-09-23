@@ -15,6 +15,7 @@ CSO review of [hhftechnology/crowdsec_manager](https://github.com/hhftechnology/
 | R5 | Align README / PRODUCT / overlays |
 | R6 | Screenshot-grounded Alerts/Decisions analytics UX (2.0.6) |
 | R7 | Hub browse RO + IP management + reject Health/Logs/Notifications privilege (2.0.7) |
+| R8 | System plane screenshots: Services / Updates / Terminal / Traefik Whitelist — **all reject**; review closed |
 
 ## Posture difference (non-negotiable)
 
@@ -32,7 +33,7 @@ Manager is excellent for homelab/Pangolin fleets that accept host Docker control
 
 ## Screenshot evidence (Manager UI)
 
-Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
+Operator screenshots of Manager v1.x informed the 2.0.5–2.0.7 adapt/reject list (R6–R8):
 
 | Manager screen | Observed | CSO decision |
 |----------------|----------|--------------|
@@ -41,7 +42,10 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 | IP Management | Check blocked / Security check / Unban / public IP | **Adapt** (2.0.7) on Decisions |
 | Logs stream | Docker service logs + Start Stream | **Reject** docker stream; optional path-tail still deferred |
 | Notifications Discord wizard | Detect compose + webhook/CTI/Geoapify secrets | **Reject** (no secret harvesting UI) |
-| Captcha / Traefik whitelist / Backups / Terminal | Already covered | **Reject** |
+| **Services Management** | Start/Stop/Restart for pangolin, traefik, crowdsec, gerbil; **Enroll CrowdSec**; **Graceful Shutdown** | **Reject** — host/orchestrator control plane |
+| **System Update** | Edit Docker image tags (CrowdSec/Gerbil/Pangolin/Traefik) | **Reject** — image lifecycle belongs to IaC, not the WAF console |
+| **Terminal / Container Shell** | Interactive shell into crowdsec/traefik/pangolin/gerbil | **Reject** |
+| **Whitelist Management** | Whitelist current IP / comprehensive CrowdSec **+ Traefik** | Keep LAPI allowlists; **reject** Traefik whitelist writes and “all locations” push |
 | Alert inspect modal | Scenario, geo, ASN, narrative, decisions, events | **Adapt** inspect dialog (sample JSON + summary); no GeoLite dependency |
 | Alerts charts / table | Top scenarios, frequency, AS column, Export CSV, Cards/Table, **delete** alert | **Adapt** top scenarios/countries + CSV + AS; **reject** alert delete + card dual-view for now |
 | Decisions analysis | Charts, since/until, type filter, **captcha** type dominant | **Adapt** hide-expired + CSV; **reject** creating captcha decisions |
@@ -51,7 +55,7 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 | Captcha wizard | Turnstile + Traefik `dynamic_config` + captcha.html | **Reject** entirely |
 | Config Validation | Snapshots of `/etc/traefik/*` + CrowdSec YAML + restore | **Reject** Traefik FIM/restore from UI |
 | Settings | Traefik dynamic config path for whitelist writes | **Reject** |
-| Backups / Terminal / Cron / Updates | Host/stack control plane | **Reject** in-console |
+| Backups / Cron | Host/stack control plane | **Reject** in-console |
 | Dashboard | Top countries/AS/scenarios, blocked IPs, container status | Partial overlap with our dashboard/map; **reject** container status |
 
 ## Feature matrix
@@ -71,6 +75,11 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 | Captcha / bot challenge | First-class wizard | Forbidden | **Reject** |
 | Traefik dynamic writes / whitelist | First-class | Never | **Reject** |
 | docker.sock / container status | Yes | No | **Reject** |
+| Services start/stop/restart / Graceful Shutdown | Yes (Pangolin stack) | No | **Reject** |
+| Docker image tag updates (System Update) | Yes | No | **Reject** — IaC owns pins |
+| Enroll CrowdSec Console SaaS | Button on Services | No | **Reject** |
+| Container shell (Terminal) | Yes | No | **Reject** |
+| Whitelist → Traefik + CrowdSec | Yes | LAPI allowlists only | **Reject** Traefik half |
 | Backups / Terminal / Cron / Updates | Yes | No | **Reject** |
 | Config drift + Traefik snapshots | Yes | No | **Reject** |
 | CrowdSec Console SaaS enroll | Health card | Out of scope | **Reject** |
@@ -94,6 +103,20 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 2. **IP management** — Decisions view: public IP label, Check blocked (dossier summary), dossier + ban/unban already present.
 3. Screenshot rejects confirmed: Docker container health tab, Traefik Integration tab, Hub install mode, Discord notification wizard (webhook/CTI/Geoapify keys), live docker log stream, scenario Remove.
 
+## R8 — System plane (no code; rejects only)
+
+Final Manager screenshots confirm the privilege boundary. **Nothing from this plane is integrated:**
+
+| Screen | Why rejected |
+|--------|----------------|
+| Services Management | Start/Stop/Restart of pangolin/traefik/crowdsec/gerbil + Graceful Shutdown requires docker.sock / host privilege |
+| Enroll CrowdSec | SaaS Console enrollment is out of PeritumCT posture |
+| System Update | Changing Docker image tags from a WAF console bypasses homologated IaC pins |
+| Terminal | Interactive container shell is RCE-adjacent for operators and attackers who reach `/waf` |
+| Whitelist Management (CrowdSec + Traefik) | Traefik dynamic whitelist writes remain forbidden; use Allowlists (LAPI/cscli) only |
+
+**Review status:** CrowdSec Manager feature surface reviewed for safe complements. Ship line is **2.0.7**. Remaining deferred items are optional polish (control export, path-tail logs, server-side alert windows) — not Manager privilege features.
+
 ## Explicitly rejected
 
 - Mounting `/var/run/docker.sock` into the console
@@ -102,8 +125,9 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 - Captcha / Turnstile / bot-challenge wizards or decision types from the UI
 - Publishing the console on a public interface by default
 - Enabling CRS in-band, `INCLUDE_LARGE_UPLOADS`, or fail-open toggles
-- In-console backups, cron, host updates, config restore of Traefik paths
-- Treating Manager’s Pangolin compose as a drop-in for homologated Docker/Podman/Cilium/K8s pins
+- In-console backups, cron, host updates, Docker image tag edits, config restore of Traefik paths
+- Service start/stop/restart, graceful shutdown, or CrowdSec Console SaaS enroll from the UI
+- Treating Manager’s Pangolin/Gerbil compose as a drop-in for homologated Docker/Podman/Cilium/K8s pins
 
 ## Deferred (still CSO-safe)
 
