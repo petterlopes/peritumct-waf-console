@@ -431,6 +431,26 @@ button.linkish:hover code { color: var(--cyan, #3ee0ff); }
 
 .host-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
 .host-tile { min-height: 140px; }
+button.hub-cat {
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+button.hub-cat.active {
+  border-color: var(--cyan, #3ee0ff);
+  box-shadow: 0 0 0 1px rgba(62, 224, 255, 0.25);
+}
+#hubSearch {
+  min-width: 220px;
+  background: #0b1220;
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
 .host-tile .kpi { font-size: 28px; font-weight: 700; margin: 10px 0 4px; }
 
 .ok { color: var(--green); }

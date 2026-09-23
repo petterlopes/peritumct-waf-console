@@ -65,6 +65,9 @@ function viewTitles() {
 let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null, dashboard: null }
 let hideExpiredDecisions = true
 let alertFilters = { ip: "", scenario: "", country: "", origin: "" }
+let hubSelected = "scenarios"
+let hubSearch = ""
+let hubCache = {}
 let owaspSelected = ""
 let mitreSelected = ""
 let mitreTactic = ""
@@ -482,11 +485,44 @@ function renderRules(rules) {
     .filter(([k]) => k !== "note")
     .map(([k, v]) => `<span class="pill ${v ? "on" : "off"}">${esc(k)}: ${esc(Array.isArray(v) ? v.join(", ") : v)}</span>`)
     .join("")
-  const hub = rules.hub || {}
-  $("hubPanels").innerHTML = Object.entries(hub).map(([name, info]) => {
-    const items = (info.items || []).slice(0, 8).map((i) => `<div class="stack-row"><span>${esc(i)}</span></div>`).join("")
-    return `<article class="card host-tile"><div class="card-head"><h2>${esc(name)}</h2><span class="tag">${esc(info.count || 0)}</span></div>${items || "<p class='hint'>" + t("empty") + "</p>"}</article>`
-  }).join("")
+  hubCache = rules.hub || {}
+  const order = ["collections", "scenarios", "parsers", "postoverflows", "appsec_configs", "appsec_rules"]
+  const keys = order.filter((k) => hubCache[k]).concat(Object.keys(hubCache).filter((k) => order.indexOf(k) < 0))
+  if (!hubSelected || !hubCache[hubSelected]) hubSelected = keys[0] || "scenarios"
+  if ($("hubPanels")) {
+    $("hubPanels").innerHTML = keys.map((name) => {
+      const info = hubCache[name] || {}
+      const active = name === hubSelected ? " active" : ""
+      return `<button type="button" class="card host-tile hub-cat${active}" data-hub="${esc(name)}"><div class="card-head"><h2>${esc(hubLabel(name))}</h2><span class="tag">${esc(info.count || 0)}</span></div><p class="hint">${esc(t("hub.browse", "Browse (read-only)"))}</p></button>`
+    }).join("")
+  }
+  renderHubItems()
+}
+
+function hubLabel(name) {
+  const map = {
+    collections: t("hub.collections", "Collections"),
+    scenarios: t("hub.scenarios", "Attack scenarios"),
+    parsers: t("hub.parsers", "Log parsers"),
+    postoverflows: t("hub.postoverflows", "Postoverflows"),
+    appsec_configs: t("hub.appsec_configs", "AppSec configurations"),
+    appsec_rules: t("hub.appsec_rules", "AppSec rules")
+  }
+  return map[name] || name
+}
+
+function renderHubItems() {
+  const info = hubCache[hubSelected] || { items: [], count: 0 }
+  const q = (hubSearch || "").trim().toLowerCase()
+  const items = (info.items || []).filter((i) => !q || String(i).toLowerCase().includes(q))
+  if ($("hubSelectedLabel")) {
+    $("hubSelectedLabel").textContent = hubLabel(hubSelected) + " · " + items.length + (info.truncated ? " (+)" : "") + " / " + (info.count || 0)
+  }
+  if ($("hubItemsBody")) {
+    $("hubItemsBody").innerHTML = items.map((i) =>
+      `<tr><td><code>${esc(i)}</code></td><td><span class="tag">${t("hub.enabled", "present")}</span></td></tr>`
+    ).join("") || `<tr><td colspan="2">${t("hub.empty", "No hub items in this category (or path not mounted)")}</td></tr>`
+  }
 }
 
 function renderAllowlists(data) {
@@ -1420,6 +1456,10 @@ async function loadCore() {
   applyFilter()
   $("enginePre").textContent = JSON.stringify(engine, null, 2)
   renderBouncers(engine.bouncers || {})
+  if ($("publicIpTag")) {
+    const pub = (domains && domains.public_ip) || ""
+    $("publicIpTag").textContent = t("ipmgmt.public_fmt", "Public IP: {ip}").replace("{ip}", pub || "—")
+  }
   await loadDashboard()
 }
 
@@ -1628,6 +1668,55 @@ if ($("exportDecisionsCsv")) {
     }))
     exportCsv("waf-decisions.csv", rows, ["ip", "origin", "type", "scenario", "until"])
   }
+}
+if ($("hubPanels")) {
+  $("hubPanels").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-hub]")
+    if (!btn) return
+    hubSelected = btn.getAttribute("data-hub") || hubSelected
+    $("hubPanels").querySelectorAll("[data-hub]").forEach((el) => {
+      el.classList.toggle("active", el.getAttribute("data-hub") === hubSelected)
+    })
+    renderHubItems()
+  })
+}
+if ($("hubSearch")) {
+  $("hubSearch").addEventListener("input", (ev) => {
+    hubSearch = ev.target.value || ""
+    renderHubItems()
+  })
+}
+if ($("ipCheckBlockedForm")) {
+  $("ipCheckBlockedForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault()
+    const ip = new FormData(ev.target).get("ip")
+    if (!ip) return
+    const pre = $("ipCheckPre")
+    try {
+      const data = await api("/api/ip?ip=" + encodeURIComponent(ip))
+      const blocked = Array.isArray(data.decisions) && data.decisions.length > 0
+      const summary = {
+        ip: data.ip,
+        blocked,
+        decisions: (data.decisions || []).length,
+        alerts_in_sample: data.alerts_count || 0,
+        allowlist: data.allowlist,
+        note: blocked
+          ? t("ipmgmt.blocked_yes", "Local decision(s) present for this IP.")
+          : t("ipmgmt.blocked_no", "No local decision for this IP in the current LAPI view.")
+      }
+      if (pre) {
+        pre.classList.remove("hidden")
+        pre.textContent = JSON.stringify(summary, null, 2)
+      }
+      if ($("dossierIp")) $("dossierIp").value = ip
+    } catch (err) {
+      if (pre) {
+        pre.classList.remove("hidden")
+        pre.textContent = String(err.message || err)
+      }
+    }
+  })
 }
 $("filterForm").addEventListener("submit", async (ev) => {
   ev.preventDefault()

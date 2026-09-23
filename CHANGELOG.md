@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.7 — 2026-09-23
+
+- CSO Hub/IP/Health screenshot pass vs CrowdSec Manager:
+  - **Hub inventory (read-only)** in Rules: collections, scenarios, parsers, postoverflows, AppSec configs/rules with search — no Install/Remove/cscli
+  - **IP management** on Decisions: public IP, check-blocked summary, dossier
+- Confirmed rejects: Docker container health, Traefik Integration tab, Discord notification wizard (secrets), live docker log stream
+- Docs: [COMPARISON.md](docs/COMPARISON.md) R7
+
 ## 2.0.6 — 2026-09-23
 
 - CSO screenshot pass vs CrowdSec Manager: richer **Alerts** analysis (IP/scenario/country/origin filters on the LAPI sample, top scenarios/countries, AS/origin columns, inspect dialog, Export CSV)

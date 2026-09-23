@@ -456,11 +456,18 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
         "/api/domains" => {
             let hosts = catalog::in_scope_hosts();
             let origin = lapi::probe_hosts(&hosts, "127.0.0.1");
-            let public = match lapi::public_ip() {
-                Ok(ip) if !ip.is_empty() => lapi::probe_hosts(&hosts, &ip),
-                _ => vec![],
+            let public_ip = lapi::public_ip().unwrap_or_default();
+            let public = if !public_ip.is_empty() {
+                lapi::probe_hosts(&hosts, &public_ip)
+            } else {
+                vec![]
             };
-            json_ok(json!({"ok": true, "origin": origin, "public": public}))
+            json_ok(json!({
+                "ok": true,
+                "origin": origin,
+                "public": public,
+                "public_ip": public_ip,
+            }))
         }
         "/api/engine" => {
             let rules = lapi::build_rules();

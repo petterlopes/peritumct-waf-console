@@ -37,7 +37,8 @@ If the console UI is unavailable, that alone does **not** redefine the protectio
 - `fail_closed` in the console is **CSO-enforced metadata** (always ON, not mutable). Validate real fail-closed on the remediation component.
 - No built-in operator login / MFA / RBAC — protect `/waf` with overlay VPN, Teleport, or IdP-aware admin middleware; keep `/waf` **off** the CrowdSec bouncer.
 - **2.0.5 complements** (inspired by [CrowdSec Manager](https://github.com/hhftechnology/crowdsec_manager), CSO-filtered): IP dossier, read-only bouncers, repeated-offender sample — see [COMPARISON.md](COMPARISON.md).
-- **2.0.6:** Alerts filters/inspect/CSV and Decisions hide-expired/CSV from Manager screenshot pass — still no docker.sock, container shell, Traefik writes, or captcha.
+- **2.0.6:** Alerts filters/inspect/CSV and Decisions hide-expired/CSV — still no docker.sock, container shell, Traefik writes, or captcha.
+- **2.0.7:** Hub inventory read-only + IP management (check blocked / public IP).
 
 ## Editorial article
 

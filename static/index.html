@@ -511,6 +511,21 @@
       </article>
       <article class="card">
         <div class="card-head">
+          <h2 data-i18n="ipmgmt.title">IP management</h2>
+          <span class="tag" id="publicIpTag" data-i18n="ipmgmt.public">Public IP: —</span>
+        </div>
+        <p class="hint" data-i18n="ipmgmt.hint">Check whether an IP is locally blocked, open the security dossier, or unban. Uses LAPI/cscli only — no Traefik whitelist rewrite, no captcha, no CrowdSec Console SaaS.</p>
+        <div class="inline wrap">
+          <form id="ipCheckBlockedForm" class="inline">
+            <label class="sr-only" for="ipCheckBlocked" data-i18n="ipmgmt.check_ph">IP to check</label>
+            <input id="ipCheckBlocked" name="ip" data-i18n-placeholder="ipmgmt.check_ph" placeholder="IP to check" autocomplete="off">
+            <button type="submit" data-i18n="ipmgmt.check">Check blocked</button>
+          </form>
+        </div>
+        <pre id="ipCheckPre" class="code hidden" aria-live="polite"></pre>
+      </article>
+      <article class="card">
+        <div class="card-head">
           <h2 data-i18n="dossier.title">IP dossier</h2>
           <form id="dossierForm" class="inline">
             <label class="sr-only" for="dossierIp" data-i18n="dossier.ph">IP to inspect</label>
@@ -696,7 +711,25 @@
         <div class="card-head"><h2 data-i18n="rules.appsec">AppSec acquis</h2><span class="tag">127.0.0.1:7422</span></div>
         <pre id="rulesAppsec" class="code"></pre>
       </article>
-      <div id="hubPanels" class="host-tiles hub-tiles"></div>
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="hub.title">Hub inventory</h2>
+          <span class="tag" data-i18n="tag.readonly">Read-only</span>
+        </div>
+        <p class="hint" data-i18n="hub.hint">Local Hub files under CrowdSec config (YAML inventory). Browse only — no Install, Remove, or Direct cscli from this UI. Captcha hub items are never managed here.</p>
+        <div id="hubPanels" class="host-tiles hub-tiles"></div>
+        <div class="inline wrap" style="margin-top:12px">
+          <label class="sr-only" for="hubSearch" data-i18n="hub.search">Search hub items</label>
+          <input id="hubSearch" data-i18n-placeholder="hub.search" placeholder="Search hub items…" autocomplete="off">
+          <span class="hint" id="hubSelectedLabel"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="th.name">Name</th><th data-i18n="th.status">Status</th></tr></thead>
+            <tbody id="hubItemsBody"></tbody>
+          </table>
+        </div>
+      </article>
     </section>
 
     <section id="view-allowlists" class="view hidden">

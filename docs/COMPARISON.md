@@ -2,7 +2,7 @@
 
 CSO review of [hhftechnology/crowdsec_manager](https://github.com/hhftechnology/crowdsec_manager) (Go + React, MIT) as a **feature complement** source — not a stack merge.
 
-**Console pin:** PeritumCT **2.0.6** · CrowdSec engine **v1.8.1** · loopback LAPI/AppSec · `/waf` off bouncer · GPL-3.0-or-later.
+**Console pin:** PeritumCT **2.0.7** · CrowdSec engine **v1.8.1** · loopback LAPI/AppSec · `/waf` off bouncer · GPL-3.0-or-later.
 
 ## Scope of this review
 
@@ -14,6 +14,7 @@ CSO review of [hhftechnology/crowdsec_manager](https://github.com/hhftechnology/
 | R4 | Ship safe P0 complements (2.0.5) |
 | R5 | Align README / PRODUCT / overlays |
 | R6 | Screenshot-grounded Alerts/Decisions analytics UX (2.0.6) |
+| R7 | Hub browse RO + IP management + reject Health/Logs/Notifications privilege (2.0.7) |
 
 ## Posture difference (non-negotiable)
 
@@ -35,7 +36,12 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 
 | Manager screen | Observed | CSO decision |
 |----------------|----------|--------------|
-| Alerts filters | ID, since/until, IP, CIDR, scope, type, scenario, origin, country, **Include CAPI** | **Adapt** filters on local LAPI sample; **reject** CAPI-include default |
+| Hub Home / parsers / scenarios / AppSec / postoverflows | Install Mode, Remove, path helpers | **Adapt** RO inventory (2.0.7); **reject** install/remove |
+| Health Containers / Traefik Integration | docker.sock inventory | **Reject** |
+| IP Management | Check blocked / Security check / Unban / public IP | **Adapt** (2.0.7) on Decisions |
+| Logs stream | Docker service logs + Start Stream | **Reject** docker stream; optional path-tail still deferred |
+| Notifications Discord wizard | Detect compose + webhook/CTI/Geoapify secrets | **Reject** (no secret harvesting UI) |
+| Captcha / Traefik whitelist / Backups / Terminal | Already covered | **Reject** |
 | Alert inspect modal | Scenario, geo, ASN, narrative, decisions, events | **Adapt** inspect dialog (sample JSON + summary); no GeoLite dependency |
 | Alerts charts / table | Top scenarios, frequency, AS column, Export CSV, Cards/Table, **delete** alert | **Adapt** top scenarios/countries + CSV + AS; **reject** alert delete + card dual-view for now |
 | Decisions analysis | Charts, since/until, type filter, **captcha** type dominant | **Adapt** hide-expired + CSV; **reject** creating captcha decisions |
@@ -56,8 +62,10 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 | Alerts filters + inspect + CSV | Yes | **2.0.6** sample filters, inspect, CSV, top scenarios/countries | **Integrated (adapt)** |
 | Decisions hide-expired + CSV | Yes | **2.0.6** | **Integrated (adapt)** |
 | Allowlists / whitelists | Yes | LAPI allowlists only | Keep ours; no Traefik whitelist UI |
-| Hub browse / install | Yes (install mode) | Hub AppSec rules **read-only** | **Adapt later** — list OK; install stays out of UI |
-| IP dossier | Yes | **`GET /api/ip`** (2.0.5) | Integrated |
+| Hub browse / install | Yes (install mode) | **2.0.7** RO inventory (collections/scenarios/parsers/postoverflows/AppSec) | **Integrated RO** — install/remove rejected |
+| IP management | Check / Security / Unban | **2.0.7** on Decisions (+ dossier 2.0.5) | **Integrated (adapt)** |
+| Notifications / Discord wizard | Yes | No | **Reject** |
+| Docker log stream | Yes | No | **Reject** |
 | Bouncers inventory | Yes (+ add/delete) | **`GET /api/bouncers`** RO (2.0.5) | Integrated RO |
 | Repeated offenders | Dashboard-style | Overview + `/api/offenders` (2.0.5) | Integrated |
 | Captcha / bot challenge | First-class wizard | Forbidden | **Reject** |
@@ -80,6 +88,12 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 1. **Alerts analysis** — IP/scenario/country/origin filters on the loaded LAPI sample; top scenarios/countries; AS + origin columns; Export CSV; inspect dialog (no delete, no captcha create).
 2. **Decisions hygiene** — Hide expired toggle + Export CSV; ban UI remains **ban-only** (never captcha).
 
+## Integrated in 2.0.7 (Hub / IP / Health screenshot pass)
+
+1. **Hub inventory (read-only)** — Rules view browses collections, scenarios, parsers, postoverflows, AppSec configs/rules from local CrowdSec Hub YAML paths. **No** Install / Remove / Direct cscli / Captcha management.
+2. **IP management** — Decisions view: public IP label, Check blocked (dossier summary), dossier + ban/unban already present.
+3. Screenshot rejects confirmed: Docker container health tab, Traefik Integration tab, Hub install mode, Discord notification wizard (webhook/CTI/Geoapify keys), live docker log stream, scenario Remove.
+
 ## Explicitly rejected
 
 - Mounting `/var/run/docker.sock` into the console
@@ -96,8 +110,7 @@ Operator screenshots of Manager v1.x informed the 2.0.6 adapt/reject list:
 | Item | Notes |
 |------|--------|
 | Control-plane export | Downloadable snapshot of `WAF_CONTROL` JSON (no secrets) |
-| Read-only log tail | Bounded tail of operator-configured paths under allowlist |
-| Hub catalog UX | Richer browse **without** install/upgrade buttons |
+| Read-only log tail | Bounded tail of operator-configured paths under allowlist — **not** docker log stream |
 | Server-side since/until on alerts | Today filters are client-side on the 24h capped sample |
 | CrowdSec-only config hash RO | Optional FIM of AppSec/profiles — never Traefik paths |
 

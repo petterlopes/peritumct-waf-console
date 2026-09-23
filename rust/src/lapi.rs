@@ -1252,11 +1252,12 @@ pub fn build_rules() -> Value {
             "cidrs": extract_cidrs(&operators),
         },
         "hub": {
-            "collections": hub_summary("collections", 40),
-            "scenarios": hub_summary("scenarios", 40),
+            "collections": hub_summary("collections", 80),
+            "scenarios": hub_summary("scenarios", 80),
+            "parsers": hub_summary("parsers", 80),
+            "postoverflows": hub_summary("postoverflows", 40),
             "appsec_configs": hub_summary("appsec-configs", 40),
-            "appsec_rules": hub_summary("appsec-rules", 24),
-            "parsers": hub_summary("parsers", 24),
+            "appsec_rules": hub_summary("appsec-rules", 80),
         },
         "policy": {
             "crs_inband": false,
