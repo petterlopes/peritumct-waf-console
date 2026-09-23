@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.10 — 2026-09-23
+
+- Hotfix: fix Rust E0502 borrow in `/api/alerts` origin enrichment so Docker/Podman release builds succeed.
+
 ## 2.0.9 — 2026-09-23
 
 - CSO operator remediation (no privilege expansion):

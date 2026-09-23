@@ -458,6 +458,7 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
                                 .and_then(|a| a.first())
                                 .and_then(|d| d.get("origin"))
                                 .and_then(|v| v.as_str())
+                                .map(str::to_string)
                             {
                                 obj.entry("origin".to_string())
                                     .or_insert_with(|| json!(origin));

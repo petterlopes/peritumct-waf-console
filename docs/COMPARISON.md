@@ -2,7 +2,7 @@
 
 CSO review of [hhftechnology/crowdsec_manager](https://github.com/hhftechnology/crowdsec_manager) (Go + React, MIT) as a **feature complement** source — not a stack merge.
 
-**Console pin:** PeritumCT **2.0.9** · CrowdSec engine **v1.8.1** · loopback LAPI/AppSec · `/waf` off bouncer · GPL-3.0-or-later.
+**Console pin:** PeritumCT **2.0.10** · CrowdSec engine **v1.8.1** · loopback LAPI/AppSec · `/waf` off bouncer · GPL-3.0-or-later.
 
 ## Scope of this review
 
@@ -72,7 +72,7 @@ Operator screenshots of Manager v1.x informed the 2.0.5–2.0.7 adapt/reject lis
 | IP management | Check / Security / Unban | **2.0.7** on Decisions (+ dossier 2.0.5) | **Integrated (adapt)** |
 | Control export / audit tail / config integrity | Partial (docker/Traefik) | **2.0.8** WAF_CONTROL export + audit.jsonl + CrowdSec hashes RO | **Integrated (adapt)** — no docker/Traefik |
 | Alerts server-side `since` | Yes | **2.0.8** allowlisted `since=` on `/api/alerts` | **Integrated (adapt)** |
-| Alert inspect → ban/unban | Partial | **2.0.9** Ban/Unban/Dossier from inspect (local ban only) | **Integrated (adapt)** |
+| Alert inspect → ban/unban | Partial | **2.0.10** Ban/Unban/Dossier from inspect (local ban only) | **Integrated (adapt)** |
 | Decisions filters / expiring | Partial | **2.0.9** IP/scenario/origin + expiring ≤1h + stats | **Integrated (adapt)** |
 | Machines / agents inventory | Yes (+ mutate) | **2.0.9** RO via cscli | **Integrated RO** |
 | Notifications / Discord wizard | Yes | No | **Reject** |
@@ -137,7 +137,7 @@ Final Manager screenshots confirm the privilege boundary. **Nothing from this pl
 | Terminal | Interactive container shell is RCE-adjacent for operators and attackers who reach `/waf` |
 | Whitelist Management (CrowdSec + Traefik) | Traefik dynamic whitelist writes remain forbidden; use Allowlists (LAPI/cscli) only |
 
-**Review status:** CrowdSec Manager feature surface reviewed for safe complements. Ship line is **2.0.9**. R10 operator remediation shipped; earlier deferred polish (control export, audit tail, alert since, CrowdSec config integrity) shipped in 2.0.8.
+**Review status:** CrowdSec Manager feature surface reviewed for safe complements. Ship line is **2.0.10**. R10 operator remediation shipped; earlier deferred polish (control export, audit tail, alert since, CrowdSec config integrity) shipped in 2.0.8.
 
 ## Explicitly rejected
 

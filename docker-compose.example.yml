@@ -11,7 +11,7 @@
 services:
   waf-console:
     build: .
-    image: peritumct-waf-console:2.0.9
+    image: peritumct-waf-console:2.0.10
     container_name: waf-console
     network_mode: host
     pid: host
@@ -20,7 +20,7 @@ services:
       WAF_BIND: "127.0.0.1"
       WAF_PORT: "18990"
       WAF_STATIC: /app/static
-      WAF_APP_VERSION: "2.0.9"
+      WAF_APP_VERSION: "2.0.10"
       WAF_APP_PRODUCT: "waf-console"
       RUST_LOG: "warn"
       TOKIO_WORKER_THREADS: "4"

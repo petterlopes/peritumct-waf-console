@@ -16,7 +16,7 @@ Operations interface for **local** [CrowdSec](https://github.com/crowdsecurity/c
 
 | | |
 |--|--|
-| **Console** | **2.0.9** · GPL-3.0-or-later · [NOTICE](NOTICE) |
+| **Console** | **2.0.10** · GPL-3.0-or-later · [NOTICE](NOTICE) |
 | **Engine** | CrowdSec **v1.8.1** (MIT, separate process) |
 | **Article** | [Local control of CrowdSec, powered by a Rust backend](https://periciacomputacional.com/peritumct-waf-console-local-control-of-crowdsec-powered-by-a-rust-backend) |
 | **Docs** | [PRODUCT](docs/PRODUCT.md) · [INTEGRATION](docs/INTEGRATION.md) · [HOMOLOGATION](docs/HOMOLOGATION.md) · [MARKETING](docs/MARKETING.md) |
@@ -61,7 +61,7 @@ More captures and captions: [docs/media/README.md](docs/media/README.md).
 - **Engine** — posture + **read-only bouncer inventory** (`cscli`)
 - **Rules / Hub** — profiles + **Hub inventory read-only** (collections, scenarios, parsers, postoverflows, AppSec) — no Install/Remove (2.0.7+)
 - **Alerts · Map · Metrics · Domains** — LAPI geo map; Alerts filters/inspect/CSV + sample top scenarios/countries (2.0.6+); HTTPS probes with status palette
-- **Admin · Operator tools** — control export, CrowdSec config integrity, audit.jsonl tail (2.0.8+); Alerts `since=` allowlist (2.0.8+); alert inspect ban/unban (2.0.9+); decisions filters/stats; machines RO; allowlists CSV
+- **Admin · Operator tools** — control export, CrowdSec config integrity, audit.jsonl tail (2.0.8+); Alerts `since=` allowlist (2.0.8+); alert inspect ban/unban (2.0.10+); decisions filters/stats; machines RO; allowlists CSV
 - **OWASP · MITRE** — local catalogs only (no runtime download from MITRE/OWASP GitHub)
 - **CTI exports** — downloadable STIX / MISP / TheHive-shaped files; **no** automatic outbound push
 - **Hardening** — loopback bind only; SSRF checks; rate limits; CSP; `/waf` must stay **off** the bouncer
@@ -98,7 +98,7 @@ Policy apply and allowlists need the **admin** Compose shape (see example commen
 - Replace CrowdSec detection / Traefik remediation
 - Claim “first in the world” exclusivity — differentiate by the **local + Rust + per-FQDN + OWASP/MITRE** combination
 
-## Operator honesty (2.0.9+)
+## Operator honesty (2.0.10+)
 
 | Topic | Reality |
 |-------|---------|
