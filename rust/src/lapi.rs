@@ -269,11 +269,11 @@ pub fn lapi_login() -> Result<String> {
         }
     }
     let creds = parse_simple_yaml(&creds_path());
+    // Prefer explicit env remap (host publishes LAPI on 18080 while file may say :8080).
     let url = netguard::assert_loopback_http_url(
-        creds
-            .get("url")
-            .cloned()
-            .or_else(|| std::env::var("CROWDSEC_LAPI").ok())
+        std::env::var("CROWDSEC_LAPI")
+            .ok()
+            .or_else(|| creds.get("url").cloned())
             .as_deref()
             .unwrap_or("http://127.0.0.1:18080"),
         "CROWDSEC_LAPI",
@@ -281,9 +281,30 @@ pub fn lapi_login() -> Result<String> {
     let login = creds
         .get("login")
         .or_else(|| creds.get("machine_id"))
+        .or_else(|| {
+            creds
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("login") || k.eq_ignore_ascii_case("machine_id"))
+                .map(|(_, v)| v)
+        })
         .cloned()
         .unwrap_or_default();
-    let password = creds.get("password").cloned().unwrap_or_default();
+    let password = creds
+        .get("password")
+        .or_else(|| {
+            creds
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("password"))
+                .map(|(_, v)| v)
+        })
+        .cloned()
+        .unwrap_or_default();
+    if login.is_empty() || password.is_empty() {
+        return Err(anyhow!(
+            "LAPI credentials missing login/password in {}",
+            creds_path().display()
+        ));
+    }
     let client = http_client()?;
     let body = json!({"machine_id": login, "password": password});
     let resp = client
@@ -291,19 +312,50 @@ pub fn lapi_login() -> Result<String> {
         .json(&body)
         .timeout(Duration::from_secs(12))
         .send()
-        .map_err(|e| anyhow!(e))?;
-    let payload: Value = resp.json().map_err(|e| anyhow!(e))?;
+        .map_err(|e| anyhow!("LAPI login transport: {e}"))?;
+    let status = resp.status();
+    let payload: Value = resp
+        .json()
+        .map_err(|e| anyhow!("LAPI login JSON ({status}): {e}"))?;
+    if !status.is_success() {
+        let detail = payload
+            .get("message")
+            .or_else(|| payload.get("error"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .chars()
+            .take(200)
+            .collect::<String>();
+        return Err(anyhow!(
+            "LAPI login HTTP {} {} {}",
+            status.as_u16(),
+            path_hint(&payload),
+            detail
+        ));
+    }
     let token = payload
         .get("token")
-        .or_else(|| payload.get("code"))
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow!("LAPI login returned no token"))?
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            anyhow!(
+                "LAPI login returned no token (keys={})",
+                path_hint(&payload)
+            )
+        })?
         .to_string();
     let mut guard = TOKEN.lock().map_err(|_| anyhow!("token lock"))?;
     guard.value = Some(token.clone());
     guard.exp = Instant::now() + Duration::from_secs(8 * 60);
     guard.url = Some(url);
     Ok(token)
+}
+
+fn path_hint(payload: &Value) -> String {
+    payload
+        .as_object()
+        .map(|o| o.keys().cloned().collect::<Vec<_>>().join(","))
+        .unwrap_or_else(|| "?".into())
 }
 
 pub fn lapi_bouncer(path: &str, query: &[(&str, String)]) -> Result<Value> {
@@ -313,10 +365,9 @@ pub fn lapi_bouncer(path: &str, query: &[(&str, String)]) -> Result<Value> {
     }
     let creds = parse_simple_yaml(&creds_path());
     let base = netguard::assert_loopback_http_url(
-        creds
-            .get("url")
-            .cloned()
-            .or_else(|| std::env::var("CROWDSEC_LAPI").ok())
+        std::env::var("CROWDSEC_LAPI")
+            .ok()
+            .or_else(|| creds.get("url").cloned())
             .as_deref()
             .unwrap_or("http://127.0.0.1:18080"),
         "CROWDSEC_LAPI",
