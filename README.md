@@ -83,21 +83,25 @@ See [docs/HOMOLOGATION.md](docs/HOMOLOGATION.md) § Kubernetes + Cilium and
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules and boundaries |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Traefik, acquis, env, verify |
 | [docs/HOMOLOGATION.md](docs/HOMOLOGATION.md) | Docker / Podman / Cilium / K8s |
+| [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) | Rust 1.98.1 pin + release profile |
 | [docs/SECURITY.md](docs/SECURITY.md) | SAST / SCA |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
 
 ## Security scans
 
-CI runs SAST (Ruff + Bandit) and SCA (pip-audit + Trivy filesystem). See
-[docs/SECURITY.md](docs/SECURITY.md) and `.github/workflows/security.yml`.
+CI runs Rust smoke tests (`cargo test`), clippy/fmt, optional `cargo audit`, Docker
+build + Trivy, and a committed-secrets gate. See [docs/SECURITY.md](docs/SECURITY.md)
+and `.github/workflows/security.yml`.
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m unittest discover -s tests -q
-ruff check .
-bandit -q -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py persist.py
-pip-audit -r requirements-dev.txt
+cd rust
+cargo test --test unit_smoke --test parity_smoke
+cargo clippy --all-targets -- -W clippy::correctness
+# optional
+cargo audit
 ```
+
+Legacy Python tests under `legacy/python/tests` run only on `workflow_dispatch`.
 
 ## Privacy
 

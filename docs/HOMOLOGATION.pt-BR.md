@@ -5,6 +5,9 @@ Homologação significa: instalação, health, probes Domains, decisions/alerts,
 CRUD de políticas e anti-lockout no reverse-proxy (`/waf` **sem** bouncer CrowdSec)
 exercitados em infraestrutura real — não só testes unitários.
 
+**Pin actual:** console **2.0.3** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
+Ver [TOOLCHAIN.md](TOOLCHAIN.md).
+
 | Runtime / plataforma | Papel | Homologado | Notas |
 |----------------------|-------|------------|-------|
 | **Docker Compose** | Contentor do console (`network_mode: host`) | Sim | `docker-compose.example.yml`; `user: "0:0"` quando SIGHUP/`cscli` precisam de privilégios no host |
@@ -48,4 +51,5 @@ Clientes (NetBird) → Cilium LB → Traefik:
 3. `/waf` sem middleware bouncer
 4. Cores Domains por classe HTTP (2xx verde)
 5. Mutações recusam operações CSO proibidas
-6. `python -m unittest discover -s tests -q`
+6. Smoke Rust: `cd rust && cargo test --test unit_smoke --test parity_smoke`
+7. Toolchain: Rust **1.98.1**, licença console **GPL-3.0-or-later** (ver [TOOLCHAIN.md](TOOLCHAIN.md) / [NOTICE](../NOTICE))

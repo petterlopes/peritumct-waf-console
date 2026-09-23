@@ -4,19 +4,18 @@
 
 | Tool | Scope |
 |------|--------|
-| Ruff | Python lint + common bug patterns (`app.py`, `control.py`, `catalog.py`) |
-| Bandit | Python security rules (`app.py`, `control.py`, `catalog.py`, `routes.py`, `dashboard.py`, `status.py`, `netguard.py`, `persist.py`) |
-| unittest | Validators, catalog load, forbidden tokens |
-
-Runtime has **no PyPI dependencies**. SAST therefore focuses on first-party code.
+| `cargo test` | Rust unit / parity smoke (`rust/tests/`) |
+| `cargo clippy` | Correctness-oriented lints (CI) |
+| `cargo fmt` | Format check (CI, non-blocking) |
+| unittest (legacy) | `legacy/python/tests` on `workflow_dispatch` only |
 
 ## SCA (software composition analysis)
 
 | Tool | Scope |
 |------|--------|
-| pip-audit | `requirements-dev.txt` (CI/dev tools only) |
-| Trivy fs | Repository filesystem + Docker base image in CI |
-| Secret scan | High-confidence credential patterns on the working tree |
+| `cargo audit` | Rust crate advisories (CI optional / best-effort) |
+| Trivy image | Multi-stage Docker image in CI |
+| Secret scan | `scripts/verify-no-committed-secrets.sh` |
 
 The CrowdSec engine image (`crowdsecurity/crowdsec`) is operated **beside** this console, not vendored. Track its CVE stream separately when you pin `v1.8.1`.
 
@@ -24,12 +23,11 @@ The CrowdSec engine image (`crowdsecurity/crowdsec`) is operated **beside** this
 
 `.github/workflows/security.yml` runs on push/PR:
 
-1. `python -m unittest`
-2. `ruff check .`
-3. `bandit -r app.py control.py catalog.py routes.py dashboard.py status.py netguard.py persist.py`
-4. `pip-audit -r requirements-dev.txt`
-5. Trivy filesystem
-6. `scripts/verify-no-committed-secrets.sh`
+1. Rust toolchain **1.98.1** — `cargo test` (unit_smoke + parity_smoke)
+2. `cargo clippy` / `cargo fmt` (warnings allowed)
+3. Optional `cargo audit`
+4. `docker build` + Trivy image (CRITICAL/HIGH)
+5. `scripts/verify-no-committed-secrets.sh`
 
 Dependabot updates GitHub Actions weekly (`.github/dependabot.yml`).
 
@@ -39,3 +37,4 @@ Dependabot updates GitHub Actions weekly (`.github/dependabot.yml`).
 - Binding off loopback
 - Enabling CRS in-band or bot challenge from the UI
 - Putting `/waf` behind the bouncer
+- Committing LAPI machine passwords or bouncer keys

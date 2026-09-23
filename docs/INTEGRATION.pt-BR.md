@@ -4,8 +4,14 @@ Documento secundário em **pt-BR**. A referência canônica é [INTEGRATION.md](
 
 O console opera um CrowdSec **local** (LAPI + AppSec). Idioma da UI: inglês por padrão, pt-BR no seletor EN/PT.
 
+**Runtime do console:** Rust **2.0.3** (MSRV / builder Docker **1.98.1**, **GPL-3.0-or-later**) — ver [TOOLCHAIN.md](TOOLCHAIN.md) e [NOTICE](../NOTICE).
+Python 1.x em `legacy/python/` só para rollback.
+
 **Homologado** com Docker Compose, Podman Compose, Kubernetes (CRDs Traefik) e Cilium —
 ver [HOMOLOGATION.pt-BR.md](HOMOLOGATION.pt-BR.md).
+
+Quando o Traefik ocupa `:8080`, o LAPI fica tipicamente em `:18080`. Preferir
+`CROWDSEC_LAPI=http://127.0.0.1:18080` mesmo que o YAML de credenciais ainda cite `:8080`.
 
 ## Passos mínimos
 
@@ -22,4 +28,5 @@ A aba **OWASP** correlaciona achados CrowdSec com o Top 10:2021 e exporta arquiv
 
 Snapshot GA4 opcional (`WAF_GA_SNAPSHOT_FILE`): exportar à mão sessões por hostname e país. O console **não** chama a Data API, **não** carrega gtag em `/waf` e **não** envia IPs CrowdSec pelo Measurement Protocol.
 
-Licença CrowdSec MIT: https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file
+Licença do **console**: GPL-3.0-or-later (`LICENSE` / `NOTICE`).
+Licença CrowdSec (engine, processo separado) MIT: https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file

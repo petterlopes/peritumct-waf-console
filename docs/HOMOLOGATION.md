@@ -5,6 +5,9 @@ Homologation means: install, health, Domains probes, decisions/alerts, policy CR
 and reverse-proxy anti-lockout (`/waf` **without** CrowdSec bouncer) were exercised on
 real infrastructure — not only unit tests.
 
+**Current pin:** console **2.0.3** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
+See [TOOLCHAIN.md](TOOLCHAIN.md).
+
 | Runtime / platform | Role | Homologated | Notes |
 |--------------------|------|-------------|-------|
 | **Docker Compose** | Console container (`network_mode: host`) | Yes | `docker-compose.example.yml`; `USER nobody` overridden with `user: "0:0"` when SIGHUP/`cscli` need host privileges |
@@ -82,8 +85,8 @@ reconcile scripts next to their cluster SoT (example: PeritumCT `cilium-devsecop
 3. `/waf` reverse-proxy path has **no** CrowdSec bouncer middleware
 4. Domains / dashboard origin probes colour by HTTP class (2xx green)
 5. Policy mutations refuse CRS in-band / `INCLUDE_LARGE_UPLOADS` / fail-closed flips
-6. Unit tests: `python -m unittest discover -s tests -q`
-7. Optional CI: Ruff, Bandit, pip-audit, Trivy (see [SECURITY.md](SECURITY.md))
+6. Rust smoke: `cd rust && cargo test --test unit_smoke --test parity_smoke`
+7. CI: clippy + Trivy + secret scan (see [SECURITY.md](SECURITY.md)); toolchain [TOOLCHAIN.md](TOOLCHAIN.md)
 
 ## Auto-update (homologated on Podman/systemd)
 
@@ -100,9 +103,10 @@ Operators can force: `FORCE=1 /usr/local/bin/update-waf-console.sh`
 | Env | Default | Use |
 |-----|---------|-----|
 | `WAF_APP_PRODUCT` | `waf-console` | Product name in `Server` / health `version` |
-| `WAF_APP_VERSION` | `1.0.18` | Semver string |
+| `WAF_APP_VERSION` | `2.0.3` | Semver string (Rust runtime) |
 
 Site packs (e.g. Nomad `waf-admin`) set `WAF_APP_PRODUCT=waf-admin` while tracking this repo.
+Console license: **GPL-3.0-or-later**; CrowdSec engine remains MIT. Builder pin: **rustc 1.98.1**.
 
 ## Out of scope for homologation claims
 

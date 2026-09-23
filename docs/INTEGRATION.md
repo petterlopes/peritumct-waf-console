@@ -4,12 +4,19 @@ Default language of this document: **English**. Portuguese: [INTEGRATION.pt-BR.m
 
 This console operates a **local** CrowdSec Security Engine. It does not replace Traefik, Nomad, or the CrowdSec cloud console.
 
+**Console runtime:** Rust **2.0.3** (MSRV / Docker builder **1.98.1**, GPL-3.0-or-later) — see [TOOLCHAIN.md](TOOLCHAIN.md) and [NOTICE](../NOTICE).
+Legacy Python 1.x under `legacy/python/` is rollback-only.
+
 Tested with CrowdSec **v1.8.1** (`crowdsecurity/crowdsec:v1.8.1`, commit `909b515`).
 Release: https://github.com/crowdsecurity/crowdsec/releases#release-v1.8.1  
-License: https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file
+Engine license (MIT, separate process): https://github.com/crowdsecurity/crowdsec?tab=MIT-1-ov-file
 
 **Homologated runtimes:** Docker Compose, Podman Compose, Kubernetes (Traefik CRDs), and Cilium networking —
 see [HOMOLOGATION.md](HOMOLOGATION.md).
+
+When Traefik occupies host `:8080`, remapped LAPI is usually `:18080`. Prefer env override
+`CROWDSEC_LAPI=http://127.0.0.1:18080` even if `local_api_credentials.yaml` still lists `:8080`.
+Machine JWT login uses HTTP/1.0 to LAPI (empty User-Agent clients get 401 on some engines).
 
 ## 1. Architecture
 
@@ -95,7 +102,7 @@ Hosts in `out_of_scope` are rejected by policy create/update (HTTP 400).
 | `WAF_POST_RATE` | `60` | Max POST mutations per client IP / minute |
 | `WAF_HEAVY_GET_RATE` | `40` | Max heavy GETs (dashboard/coverage/correlation/overview) per IP / minute |
 | `WAF_APP_PRODUCT` | `waf-console` | Product name in health `version` / `Server` header |
-| `WAF_APP_VERSION` | `1.0.18` | Semver string paired with product |
+| `WAF_APP_VERSION` | `2.0.3` | Semver string paired with product (Rust console) |
 | `TRAEFIK_API` | `http://127.0.0.1:8080/api/http/routers` | Optional bouncer map (**loopback only**) |
 | `WAF_MISP_URL` | empty | If set, MISP connector status is `configured` (file export only; no push) |
 | `WAF_MISP_KEY` | empty | Stored for operators; **never** returned in JSON |
