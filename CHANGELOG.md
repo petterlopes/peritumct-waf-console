@@ -5,6 +5,7 @@
 - CSO clarity: `fail_closed` is documented as **policy metadata** (`fail_closed_mode=cso_enforced`, not mutable) — UI no longer treats it as a live TCP probe
 - Dashboard 24h: LAPI fetch uses `since=24h`, client-side window filter, honest `sample` / `window_label` when the fetch limit caps coverage; `WAF_ALERTS_LIMIT` (default 500)
 - Compose: `docker-compose.example.yml` ships admin defaults (`pid: host`, `user: "0:0"`, host CrowdSec + cscli mounts, `WAF_ALLOWLIST`)
+- Docs / MKT: product positioning, screenshot gallery, social creatives, GitHub publication kit ([docs/PRODUCT.md](docs/PRODUCT.md), [docs/MARKETING.md](docs/MARKETING.md), [docs/media/](docs/media/README.md)); editorial article linked from README
 
 ## 2.0.3 — 2026-09-22
 

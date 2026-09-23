@@ -21,6 +21,11 @@ for PERITUM / Perícia Computacional. It is not the CrowdSec cloud dashboard.
 - OWASP Top 10:2021 and MITRE ATT&CK labels are **local catalogs** for operator
   correlation (no live download from those projects).
 
+## Editorial
+
+- Product article (EN): https://periciacomputacional.com/peritumct-waf-console-local-control-of-crowdsec-powered-by-a-rust-backend
+- GitHub marketing kit: [MARKETING.md](MARKETING.md) · media: [media/README.md](media/README.md)
+
 The `/waf` UI never loads advertising or gtag.
 
 UI: Credits tab · `#credits`
