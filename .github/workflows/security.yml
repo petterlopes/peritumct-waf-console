@@ -52,7 +52,8 @@ jobs:
       - name: Build image
         run: docker build -t peritumct-waf-console:ci .
       - name: Trivy image
-        uses: aquasecurity/trivy-action@b6640a8a0553bb5a2d4878ae9ef2a02412e5dbd2 # v0.33.1
+        # 0.35.0 — post supply-chain remediation; previous v0.33.1 pin was a typo SHA (b6640a8a…)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: image
           image-ref: peritumct-waf-console:ci
