@@ -64,8 +64,11 @@ function viewTitles() {
 
 let cache = { decisions: [], alerts: [], domains: { origin: [], public: [] }, overview: null, coverage: null, correlation: null, dashboard: null }
 let hideExpiredDecisions = true
+let decisionFilters = { ip: "", scenario: "", origin: "" }
+let decisionExpiringSoon = false
 let alertFilters = { ip: "", scenario: "", country: "", origin: "" }
 let alertSince = "24h"
+let inspectAlertIp = ""
 let hubSelected = "scenarios"
 let hubSearch = ""
 let hubCache = {}
@@ -249,6 +252,32 @@ function decisionExpired(d) {
   return false
 }
 
+function decisionExpiresWithin(d, ms) {
+  const u = String((d && d.until) || "").trim()
+  const t = Date.parse(u)
+  if (Number.isNaN(t)) return false
+  const left = t - Date.now()
+  return left >= 0 && left <= ms
+}
+
+function filteredDecisions(items) {
+  const ipQ = (decisionFilters.ip || "").trim().toLowerCase()
+  const scenQ = (decisionFilters.scenario || "").trim().toLowerCase()
+  const oriQ = (decisionFilters.origin || "").trim().toLowerCase()
+  const iso = selectedIso()
+  return (items || []).filter((d) => {
+    if (hideExpiredDecisions && decisionExpired(d)) return false
+    if (decisionExpiringSoon && !decisionExpiresWithin(d, 3600 * 1000)) return false
+    if (!matchesFilter([d.value, d.origin, d.scenario, d.reason, d.type].join(" "))) return false
+    const ip = String(d.value || d.ip || "")
+    if (ipQ && !ip.toLowerCase().includes(ipQ)) return false
+    if (scenQ && !String(d.scenario || d.reason || "").toLowerCase().includes(scenQ)) return false
+    if (oriQ && !String(d.origin || "").toLowerCase().includes(oriQ)) return false
+    if (iso && !geoMatch(cnOfIp(ip))) return false
+    return true
+  })
+}
+
 function filteredAlerts(items) {
   const ipQ = (alertFilters.ip || "").trim().toLowerCase()
   const scenQ = (alertFilters.scenario || "").trim().toLowerCase()
@@ -424,9 +453,35 @@ function renderBouncers(payload) {
   }).join("") || `<tr><td colspan="5">${esc(t("bouncers.empty", "No bouncers listed (cscli unavailable or empty)"))}</td></tr>`
 }
 
+function renderMachines(payload) {
+  const node = $("machinesBody")
+  if (!node) return
+  const items = normalizeMachineItems(payload)
+  node.innerHTML = items.map((m) => {
+    const name = m.machine_id || m.name || m.Name || m.machineId || "—"
+    const ip = m.ip_address || m.ip || m.IpAddress || "—"
+    const last = m.last_heartbeat || m.last_seen || m.UpdatedAt || m.last_beat || "—"
+    const valid = m.is_validated === true || m.validated === true || m.IsValidated === true || m.valid === true
+    return `<tr>
+      <td><code>${esc(name)}</code></td>
+      <td><code>${esc(ip)}</code></td>
+      <td>${esc(last)}</td>
+      <td>${valid ? "OK" : "—"}</td>
+    </tr>`
+  }).join("") || `<tr><td colspan="4">${esc(t("machines.empty", "No machines listed (cscli unavailable or empty)"))}</td></tr>`
+}
+
 function normalizeBouncerItems(payload) {
   if (!payload) return []
   const raw = payload.items || payload.bouncers || payload
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === "object") return Object.values(raw)
+  return []
+}
+
+function normalizeMachineItems(payload) {
+  if (!payload) return []
+  const raw = payload.items || payload.machines || payload
   if (Array.isArray(raw)) return raw
   if (raw && typeof raw === "object") return Object.values(raw)
   return []
@@ -636,15 +691,22 @@ function renderMetrics(mx) {
 }
 
 function renderDecisions(items) {
-  const iso = selectedIso()
-  const filtered = (items || []).filter((d) => {
-    if (hideExpiredDecisions && decisionExpired(d)) return false
-    if (!matchesFilter([d.value, d.origin, d.scenario, d.reason, d.type].join(" "))) return false
-    if (!iso) return true
-    return geoMatch(cnOfIp(d.value || d.ip || ""))
-  })
+  const all = items || []
+  const active = all.filter((d) => !decisionExpired(d)).length
+  const expired = all.length - active
+  const soon = all.filter((d) => decisionExpiresWithin(d, 3600 * 1000)).length
+  const filtered = filteredDecisions(all)
   if ($("decisionsCount")) {
     $("decisionsCount").textContent = t("decisions.count", "{n} local decisions").replace("{n}", String(filtered.length))
+  }
+  if ($("decisionsStats")) {
+    $("decisionsStats").textContent = t(
+      "decisions.stats",
+      "Active {a} · Expired {e} · Expiring ≤1h {s} (before client filters)"
+    )
+      .replace("{a}", String(active))
+      .replace("{e}", String(expired))
+      .replace("{s}", String(soon))
   }
   $("decisionsBody").innerHTML = filtered.map((d) => {
     const ip = d.value || d.ip || "—"
@@ -686,6 +748,7 @@ function showAlertInspect(alert) {
   const dlg = $("alertInspect")
   if (!dlg || !alert) return
   const ip = ipOf(alert)
+  inspectAlertIp = ip
   const title = $("alertInspectTitle")
   if (title) title.textContent = t("alerts.inspect", "Alert inspection") + (alert.id != null ? " #" + alert.id : "")
   const sum = $("alertInspectSummary")
@@ -706,6 +769,19 @@ function showAlertInspect(alert) {
   if (pre) pre.textContent = JSON.stringify(alert, null, 2)
   if (typeof dlg.showModal === "function") dlg.showModal()
   else dlg.classList.remove("hidden")
+}
+
+async function banIp(ip, duration, reason) {
+  if (!ip || ip === "—") return
+  const dur = duration || "4h"
+  const why = reason || "cso-console"
+  if (!window.confirm(t("decisions.ban_confirm") + ip + " on local LAPI?")) return
+  await api("/api/decisions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ip, duration: dur, reason: why })
+  })
+  await loadAll()
 }
 
 function renderOwasp(data) {
@@ -1419,7 +1495,7 @@ function applyFilter() {
   renderMitre(cache.correlation)
   if (cache.overview) renderOverview(cache.overview)
   if (cache.dashboard) renderDashboard(cache.dashboard)
-  const map = (cache.coverage && cache.coverage.map) || (typeof mapUi !== "undefined" && mapUi && mapUi.payload)
+  const map = cache.map || (cache.coverage && cache.coverage.map) || (typeof mapUi !== "undefined" && mapUi && mapUi.payload)
   if (map && typeof renderMapView === "function") renderMapView(map)
   renderFilterChip()
   renderGaPrecision(cache.correlation, "gaOverview")
@@ -1455,20 +1531,27 @@ async function loadAlerts(since) {
 async function loadCore() {
   const since = ($("alertFilterSince") && $("alertFilterSince").value) || alertSince || "24h"
   alertSince = since
-  const [overview, decisions, alerts, domains, engine, correlation] = await Promise.all([
+  const [overview, decisions, alerts, domains, engine, correlation, offenders, mapData] = await Promise.all([
     api("/api/overview"),
     api("/api/decisions"),
     api("/api/alerts?since=" + encodeURIComponent(since)),
     api("/api/domains"),
     api("/api/engine"),
-    api("/api/correlation")
+    api("/api/correlation"),
+    api("/api/offenders?since=" + encodeURIComponent(since)),
+    api("/api/map?since=" + encodeURIComponent(since))
   ])
-  cache = { ...cache, overview, decisions: decisions.items || [], alerts: alerts.items || [], domains, engine, correlation }
+  if (overview && typeof overview === "object") {
+    overview.offenders = offenders
+    overview.map = mapData
+  }
+  cache = { ...cache, overview, decisions: decisions.items || [], alerts: alerts.items || [], domains, engine, correlation, offenders, map: mapData }
   renderOverview(overview)
   renderDomains(domains)
   applyFilter()
   $("enginePre").textContent = JSON.stringify(engine, null, 2)
   renderBouncers(engine.bouncers || {})
+  renderMachines(engine.machines || {})
   if ($("publicIpTag")) {
     const pub = (domains && domains.public_ip) || ""
     $("publicIpTag").textContent = t("ipmgmt.public_fmt", "Public IP: {ip}").replace("{ip}", pub || "—")
@@ -1612,15 +1695,84 @@ $("unbanForm").addEventListener("submit", (ev) => {
 $("banForm").addEventListener("submit", async (ev) => {
   ev.preventDefault()
   const fd = new FormData(ev.target)
-  const ip = fd.get("ip")
-  if (!ip || !window.confirm(t("decisions.ban_confirm") + ip + " on local LAPI?")) return
-  await api("/api/decisions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ip, duration: fd.get("duration"), reason: fd.get("reason") })
-  })
-  await loadAll()
+  await banIp(fd.get("ip"), fd.get("duration"), fd.get("reason"))
 })
+if ($("decisionFilterForm")) {
+  $("decisionFilterForm").addEventListener("submit", (ev) => {
+    ev.preventDefault()
+    decisionFilters = {
+      ip: ($("decisionFilterIp") && $("decisionFilterIp").value) || "",
+      scenario: ($("decisionFilterScenario") && $("decisionFilterScenario").value) || "",
+      origin: ($("decisionFilterOrigin") && $("decisionFilterOrigin").value) || ""
+    }
+    decisionExpiringSoon = !!($("decisionExpiringSoon") && $("decisionExpiringSoon").checked)
+    applyFilter()
+  })
+}
+if ($("decisionFilterReset")) {
+  $("decisionFilterReset").addEventListener("click", () => {
+    decisionFilters = { ip: "", scenario: "", origin: "" }
+    decisionExpiringSoon = false
+    ;["decisionFilterIp", "decisionFilterScenario", "decisionFilterOrigin"].forEach((id) => {
+      if ($(id)) $(id).value = ""
+    })
+    if ($("decisionExpiringSoon")) $("decisionExpiringSoon").checked = false
+    applyFilter()
+  })
+}
+if ($("inspectBanBtn")) {
+  $("inspectBanBtn").addEventListener("click", async () => {
+    const dur = ($("inspectBanDuration") && $("inspectBanDuration").value) || "4h"
+    const scenario = "alert-inspect"
+    try {
+      await banIp(inspectAlertIp, dur, scenario)
+      const dlg = $("alertInspect")
+      if (dlg && typeof dlg.close === "function") dlg.close()
+    } catch (err) {
+      setLive(false, String(err.message || err))
+    }
+  })
+}
+if ($("inspectUnbanBtn")) {
+  $("inspectUnbanBtn").addEventListener("click", async () => {
+    try {
+      await unban(inspectAlertIp)
+      const dlg = $("alertInspect")
+      if (dlg && typeof dlg.close === "function") dlg.close()
+    } catch (err) {
+      setLive(false, String(err.message || err))
+    }
+  })
+}
+if ($("inspectDossierBtn")) {
+  $("inspectDossierBtn").addEventListener("click", async () => {
+    const dlg = $("alertInspect")
+    if (dlg && typeof dlg.close === "function") dlg.close()
+    await showIpDossier(inspectAlertIp)
+  })
+}
+if ($("exportAllowCsv")) {
+  $("exportAllowCsv").onclick = () => {
+    const al = (cache.coverage && cache.coverage.allowlists) || {}
+    const rows = []
+    ;(al.lapi || []).forEach((list) => {
+      const name = list.name || list.Name || "lapi"
+      const items = list.items || list.Items || list.allowlist_items || []
+      if (Array.isArray(items) && items.length) {
+        items.forEach((it) => {
+          const cidr = typeof it === "string" ? it : (it.value || it.cidr || it.ip || "")
+          rows.push({ source: "lapi", list: name, cidr, description: (it && it.description) || "" })
+        })
+      } else if (list.value || list.cidr) {
+        rows.push({ source: "lapi", list: name, cidr: list.value || list.cidr, description: "" })
+      }
+    })
+    ;(al.parser_cidrs || []).forEach((cidr) => {
+      rows.push({ source: "parser", list: al.parser_file || "cso-operators", cidr, description: "" })
+    })
+    exportCsv("waf-allowlists.csv", rows, ["source", "list", "cidr", "description"])
+  }
+}
 if ($("dossierForm")) {
   $("dossierForm").addEventListener("submit", async (ev) => {
     ev.preventDefault()

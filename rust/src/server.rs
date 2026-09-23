@@ -50,6 +50,7 @@ static HEAVY_GET: &[&str] = &[
     "/api/control/export",
     "/api/audit/tail",
     "/api/config/integrity",
+    "/api/machines",
 ];
 
 #[derive(Clone)]
@@ -65,6 +66,13 @@ fn json_err(code: StatusCode, message: impl Into<String>) -> Response {
 
 fn json_ok(body: Value) -> Response {
     (StatusCode::OK, Json(body)).into_response()
+}
+
+fn since_param(qs: &HashMap<String, String>) -> Result<String, Response> {
+    match qs.get("since").map(|s| s.as_str()).unwrap_or("24h") {
+        "" => Ok("24h".to_string()),
+        raw => lapi::validate_since(raw).map_err(|e| json_err(StatusCode::BAD_REQUEST, e.to_string())),
+    }
 }
 
 fn download_json(body: Value, filename: &str) -> Response {
@@ -424,12 +432,9 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
             }))
         }
         "/api/alerts" => {
-            let since = match qs.get("since").map(|s| s.as_str()).unwrap_or("24h") {
-                "" => "24h".to_string(),
-                raw => match lapi::validate_since(raw) {
-                    Ok(s) => s,
-                    Err(e) => return json_err(StatusCode::BAD_REQUEST, e.to_string()),
-                },
+            let since = match since_param(&qs) {
+                Ok(s) => s,
+                Err(r) => return r,
             };
             match lapi::fetch_alerts_window(lapi::alerts_fetch_limit(200), Some(&since)) {
                 Ok(data) => {
@@ -510,9 +515,11 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
                 rules.get("appsec").cloned().unwrap_or(json!({})),
             );
             eng.insert("bouncers".into(), lapi::bouncers_status());
+            eng.insert("machines".into(), lapi::machines_status());
             json_ok(Value::Object(eng))
         }
         "/api/bouncers" => json_ok(lapi::bouncers_status()),
+        "/api/machines" => json_ok(lapi::machines_status()),
         "/api/ip" => {
             let ip = qs.get("ip").cloned().unwrap_or_default();
             match lapi::ip_dossier(&ip) {
@@ -520,19 +527,39 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
                 Err(e) => json_err(StatusCode::BAD_REQUEST, e.to_string()),
             }
         }
-        "/api/offenders" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
-            Ok(alerts) => json_ok(lapi::repeated_offenders(&alerts, 16)),
-            Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
-        },
-        "/api/map" => match lapi::fetch_alerts(lapi::alerts_fetch_limit(200)) {
-            Ok(alerts) => {
-                let map = lapi::build_map(&alerts);
-                let mut out = map.as_object().cloned().unwrap_or_default();
-                out.insert("ok".into(), json!(true));
-                json_ok(Value::Object(out))
+        "/api/offenders" => {
+            let since = match since_param(&qs) {
+                Ok(s) => s,
+                Err(r) => return r,
+            };
+            match lapi::fetch_alerts_window(lapi::alerts_fetch_limit(200), Some(&since)) {
+                Ok(alerts) => {
+                    let mut out = lapi::repeated_offenders(&alerts, 16)
+                        .as_object()
+                        .cloned()
+                        .unwrap_or_default();
+                    out.insert("since".into(), json!(since));
+                    json_ok(Value::Object(out))
+                }
+                Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
             }
-            Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
-        },
+        }
+        "/api/map" => {
+            let since = match since_param(&qs) {
+                Ok(s) => s,
+                Err(r) => return r,
+            };
+            match lapi::fetch_alerts_window(lapi::alerts_fetch_limit(200), Some(&since)) {
+                Ok(alerts) => {
+                    let map = lapi::build_map(&alerts);
+                    let mut out = map.as_object().cloned().unwrap_or_default();
+                    out.insert("ok".into(), json!(true));
+                    out.insert("since".into(), json!(since));
+                    json_ok(Value::Object(out))
+                }
+                Err(e) => json_err(StatusCode::BAD_GATEWAY, e.to_string()),
+            }
+        }
         "/api/rules" => {
             let mut rules = lapi::build_rules().as_object().cloned().unwrap_or_default();
             rules.insert("ok".into(), json!(true));

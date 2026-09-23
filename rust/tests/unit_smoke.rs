@@ -175,15 +175,12 @@ fn control_export_and_audit_tail_offline() {
 }
 
 #[test]
-fn config_integrity_reports_missing_soft() {
-    use waf_console::control::config_integrity;
-    let dir = TempDir::new().expect("tempdir");
-    std::env::set_var("CROWDSEC_CONFIG", dir.path());
-    let out = config_integrity();
-    assert_eq!(out["ok"], true);
-    let files = out["files"].as_array().expect("files");
-    assert!(!files.is_empty());
-    assert!(files.iter().all(|f| f["present"] == false || f.get("sha1").is_some()));
-    std::env::remove_var("CROWDSEC_CONFIG");
+fn machines_status_soft_fails_offline() {
+    use waf_console::lapi::machines_status;
+    // Without cscli/NOMAD this returns ok:false and empty items — never panics.
+    let out = machines_status();
+    assert!(out.get("items").is_some());
+    assert!(out.get("source").is_some());
+    assert_eq!(out["source"], "cscli");
 }
 

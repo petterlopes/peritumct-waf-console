@@ -5,7 +5,7 @@ Homologation means: install, health, Domains probes, decisions/alerts, policy CR
 and reverse-proxy anti-lockout (`/waf` **without** CrowdSec bouncer) were exercised on
 real infrastructure — not only unit tests.
 
-**Current pin:** console **2.0.8** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
+**Current pin:** console **2.0.9** (Rust **1.98.1**, GPL-3.0-or-later) · CrowdSec **v1.8.1** (MIT).
 See [TOOLCHAIN.md](TOOLCHAIN.md).
 
 | Runtime / platform | Role | Homologated | Notes |
@@ -103,7 +103,7 @@ Operators can force: `FORCE=1 /usr/local/bin/update-waf-console.sh`
 | Env | Default | Use |
 |-----|---------|-----|
 | `WAF_APP_PRODUCT` | `waf-console` | Product name in `Server` / health `version` |
-| `WAF_APP_VERSION` | `2.0.8` | Semver string (Rust runtime) |
+| `WAF_APP_VERSION` | `2.0.9` | Semver string (Rust runtime) |
 
 Site packs (e.g. Nomad `waf-admin`) set `WAF_APP_PRODUCT=waf-admin` while tracking this repo.
 Console license: **GPL-3.0-or-later**; CrowdSec engine remains MIT. Builder pin: **rustc 1.98.1**.

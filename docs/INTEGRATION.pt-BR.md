@@ -4,7 +4,7 @@ Documento secundário em **pt-BR**. A referência canônica é [INTEGRATION.md](
 
 O console opera um CrowdSec **local** (LAPI + AppSec). Idioma da UI: inglês por padrão, pt-BR no seletor EN/PT.
 
-**Runtime do console:** Rust **2.0.8** (MSRV / builder Docker **1.98.1**, **GPL-3.0-or-later**) — ver [TOOLCHAIN.md](TOOLCHAIN.md) e [NOTICE](../NOTICE).
+**Runtime do console:** Rust **2.0.9** (MSRV / builder Docker **1.98.1**, **GPL-3.0-or-later**) — ver [TOOLCHAIN.md](TOOLCHAIN.md) e [NOTICE](../NOTICE).
 Python 1.x em `legacy/python/` só para rollback.
 
 **Homologado** com Docker Compose, Podman Compose, Kubernetes (CRDs Traefik) e Cilium —

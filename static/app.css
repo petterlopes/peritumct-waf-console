@@ -410,9 +410,15 @@ button.linkish:hover code { color: var(--cyan, #3ee0ff); }
   gap: 8px 14px;
   margin: 10px 0 12px;
 }
-.inspect-kv { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
-.inspect-kv span { color: var(--muted); }
-.inspect-kv b { font-weight: 600; word-break: break-word; }
+.inspect-actions { margin: 10px 0 12px; gap: 8px; align-items: center; }
+.inspect-actions select {
+  background: #0b1220;
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
 
 .land { fill: #14314f; stroke: #2a5d86; stroke-width: 0.45; }
 .ocean { fill: url(#oceanGrad); }

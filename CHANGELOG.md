@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.9 — 2026-09-23
+
+- CSO operator remediation (no privilege expansion):
+  - **Alert inspect** — Ban IP (local) / Unban / Dossier with duration preset
+  - **Decisions** — IP/scenario/origin filters, expiring ≤1h, active/expired stats
+  - **Machines (RO)** — `GET /api/machines` via cscli on Engine
+  - **Offenders/Map `since=`** — same allowlist as Alerts
+  - **Allowlists CSV** export
+- Docs: [COMPARISON.md](docs/COMPARISON.md) R10
+
 ## 2.0.8 — 2026-09-23
 
 - CSO deferred P1 polish (no Manager privilege expansion):

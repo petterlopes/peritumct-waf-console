@@ -1473,7 +1473,7 @@ pub fn repeated_offenders(alerts: &[Value], limit: usize) -> Value {
         "ok": true,
         "items": items,
         "sample_size": alerts.len(),
-        "note": "Derived from the current LAPI alert sample (since=24h, capped). Not a complete traffic census.",
+        "note": "Derived from the current LAPI alert sample (capped). Not a complete traffic census.",
     })
 }
 
@@ -1505,6 +1505,38 @@ pub fn bouncers_status() -> Value {
             "items": [],
             "error": e.to_string().chars().take(400).collect::<String>(),
             "note": "Set CROWDSEC_CSCLI or NOMAD_BIN to list bouncers.",
+        }),
+    }
+}
+
+/// Read-only CrowdSec machines/agents inventory via cscli (soft-fail).
+pub fn machines_status() -> Value {
+    match control::cscli(&["machines", "list", "-o", "json"]) {
+        Ok(text) => {
+            let parsed: Value = serde_json::from_str(&text).unwrap_or_else(|_| json!([]));
+            let items = if let Some(arr) = parsed.as_array() {
+                Value::Array(arr.clone())
+            } else if let Some(obj) = parsed.as_object() {
+                obj.get("machines")
+                    .or_else(|| obj.get("items"))
+                    .cloned()
+                    .unwrap_or(parsed)
+            } else {
+                parsed
+            };
+            json!({
+                "ok": true,
+                "source": "cscli",
+                "items": items,
+                "note": "Read-only machine inventory. Console never validates/deletes machines or enrolls SaaS Console.",
+            })
+        }
+        Err(e) => json!({
+            "ok": false,
+            "source": "cscli",
+            "items": [],
+            "error": e.to_string().chars().take(400).collect::<String>(),
+            "note": "Set CROWDSEC_CSCLI or NOMAD_BIN to list machines.",
         }),
     }
 }
