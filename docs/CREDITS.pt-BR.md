@@ -20,6 +20,11 @@ para a PERITUM / Perícia Computacional. Não é o dashboard cloud da CrowdSec.
   Coordenadas só da LAPI CrowdSec (sem GeoIP de terceiros).
 - OWASP Top 10:2021 e MITRE ATT&CK são **catálogos locais** (sem download direto).
 
+## Editorial
+
+- Artigo do produto (EN): https://periciacomputacional.com/peritumct-waf-console-local-control-of-crowdsec-powered-by-a-rust-backend
+- Kit GitHub / LinkedIn: [MARKETING.md](MARKETING.md) · mídia: [media/README.md](media/README.md)
+
 A UI `/waf` nunca carrega publicidade nem gtag.
 
 UI: aba Créditos · `#credits`
