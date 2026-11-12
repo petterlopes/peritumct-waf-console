@@ -1,0 +1,18 @@
+{
+  "exclude": [
+    "docs/**",
+    "**/*.env",
+    "**/*.pem",
+    "**/*.p12",
+    "**/*.pfx",
+    "**/*.tfvars",
+    "**/*.tfstate"
+  ],
+  "rules": [
+    {
+      "path": "**/*",
+      "merge_system_rule": true,
+      "rule": "Escreva os comentários em português. Revisão do console WAF: sinalize bypass de autorização, segredo no repositório e inspeção desligada por padrão. Limite o comentário ao defeito no código."
+    }
+  ]
+}

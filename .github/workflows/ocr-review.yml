@@ -1,0 +1,42 @@
+name: OpenCodeReview
+
+# Stays skipped until the repository variable OCR_ENABLED is exactly true.
+# Before flipping it, set:
+#   secret  OCR_LLM_URL
+#   secret  OCR_LLM_AUTH_TOKEN
+#   variable OCR_LLM_MODEL
+#   variable OCR_LLM_USE_ANTHROPIC   (true or false)
+# and merge .opencodereview/rule.json to the default branch.
+# pull_request keeps fork PRs from receiving those secrets. The pinned
+# action checks out the trusted base and fetches the PR head as git objects.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ocr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: vars.OCR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: OpenCodeReview
+        uses: alibaba/open-code-review@4236c871fe8130aa840a2a1c0922f469e87e0416 # v1.13.8
+        with:
+          llm_url: ${{ secrets.OCR_LLM_URL }}
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: ${{ vars.OCR_LLM_MODEL }}
+          llm_use_anthropic: ${{ vars.OCR_LLM_USE_ANTHROPIC }}
+          language: Portuguese
+          effort: medium
+          ocr_version: "1.13.8"
+          max_tokens_budget: "2000000"
+          stream_progress: "false"
