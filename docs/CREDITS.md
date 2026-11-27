@@ -18,7 +18,7 @@ for PERITUM / Perícia Computacional. It is not the CrowdSec cloud dashboard.
   https://github.com/crowdsecurity/crowdsec — integration pin **v1.8.1**. See `NOTICE`.
 - World land polygons: Natural Earth 110m (public domain). Map projection: Robinson.
   Coordinates come only from CrowdSec LAPI (no third-party GeoIP).
-- OWASP Top 10:2021 and MITRE ATT&CK labels are **local catalogs** for operator
+- OWASP Top 10:2025 and MITRE ATT&CK labels are **local catalogs** for operator
   correlation (no live download from those projects).
 
 ## Editorial

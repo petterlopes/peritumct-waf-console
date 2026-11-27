@@ -326,11 +326,22 @@ function matchesFilter(text) {
 }
 
 function attackLink(tid) {
+  const id = String(tid || "")
+  if (!/^T\d{4}(?:\.\d{3})?$/.test(id)) return esc(id)
   const mitre = (cache.correlation && cache.correlation.mitre) || {}
   const catalog = mitre.techniques || (cache.correlation && cache.correlation.attack) || []
-  const tech = catalog.find((x) => x.id === tid)
-  const url = (tech && tech.url) || ("https://attack.mitre.org/techniques/" + String(tid).replace(".", "/") + "/")
-  return `<a href="${url}" target="_blank" rel="noopener">${tid}</a>`
+  const tech = catalog.find((x) => x.id === id)
+  const raw = tech && tech.url
+  const url = (typeof raw === "string" && raw.indexOf("https://attack.mitre.org/") === 0)
+    ? raw
+    : ("https://attack.mitre.org/techniques/" + id.replace(".", "/") + "/")
+  return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(id)}</a>`
+}
+
+function owaspLabel(data, code) {
+  const cat = ((data && data.owasp) || []).find((c) => c && c.code === code)
+  if (!cat) return code || "none"
+  return (cat.id || cat.code) + (cat.name ? " " + cat.name : "")
 }
 
 function renderFilterChip() {
@@ -553,6 +564,31 @@ function renderRules(rules) {
     }).join("")
   }
   renderHubItems()
+  renderAdvisories(cache.correlation)
+}
+
+function renderAdvisories(data) {
+  const mount = $("virtualPatches")
+  if (!mount) return
+  const items = (data && data.advisories) || []
+  mount.innerHTML = items.map((a) => {
+    const rows = (a.affected || []).map((row) =>
+      `<div class="stack-row"><span>${esc(row.cve)} · ${esc(row.summary || "")}</span><b>${esc(row.vulnerable || "")} → ${esc(row.fixed || "")}</b></div>`
+    ).join("")
+    const action = t("rules.vpatch.action", "Upgrade nginx to {stable} (stable) or {mainline} (mainline). Both issues require HTTP/2; until the upgrade, turn HTTP/2 off.")
+      .replace("{stable}", a.fixed_stable || "")
+      .replace("{mainline}", a.fixed_mainline || "")
+    const source = (typeof a.source === "string" && a.source.indexOf("https://nginx.org/") === 0) ? a.source : ""
+    const link = source
+      ? `<a href="${esc(source)}" target="_blank" rel="noopener noreferrer">${esc(source)}</a>`
+      : ""
+    return `<div class="vpatch">
+      <div class="stack-row"><span>${esc(t("rules.vpatch.nginx", "NGINX HTTP/2 memory corruption"))}</span><b>${esc(a.owasp_id || a.owasp || "")} · ${esc((a.attack || []).join(" "))}</b></div>
+      <p>${esc(action)}</p>
+      ${rows}
+      <p class="hint">${link}</p>
+    </div>`
+  }).join("") || `<p class="hint">${esc(t("rules.vpatch_empty", "No local virtual patches"))}</p>`
 }
 
 function hubLabel(name) {
@@ -654,6 +690,7 @@ function fillPolicyForm(item) {
 
 function applyCoverage(coverage) {
   cache.coverage = coverage
+  if (coverage.correlation) cache.correlation = coverage.correlation
   renderRules(coverage.rules)
   renderAllowlists(coverage.allowlists)
   renderMetrics(coverage.metrics)
@@ -661,7 +698,6 @@ function applyCoverage(coverage) {
     cache.sites = coverage.sites
     renderSites(coverage.sites)
   }
-  if (coverage.correlation) cache.correlation = coverage.correlation
   if (coverage.map) {
     if (typeof mapUi !== "undefined") mapUi.payload = coverage.map
     if (cache.overview) cache.overview.map = coverage.map
@@ -795,12 +831,14 @@ function renderOwasp(data) {
       const pct = Math.round((100 * (c.count || 0)) / max)
       const rules = (c.hub_rules || []).slice(0, 3).join(", ")
       const active = owaspSelected === c.code ? " active" : ""
-      return `<button type="button" class="owasp-tile${hot ? " hot" : ""}${active}" data-owasp="${c.code}">
-        <b>${c.code}</b>
-        <span>${c.name || ""}</span>
-        <strong>${c.count || 0}</strong>
+      const ruleText = rules ? esc(rules) : esc(t("owasp.no_rules", "no hub rules"))
+      return `<button type="button" class="owasp-tile${hot ? " hot" : ""}${active}" data-owasp="${esc(c.code)}" title="${esc(c.url || "")}">
+        <b>${esc(c.code)}</b>
+        <span>${esc(c.id || "")}</span>
+        <span>${esc(c.name || "")}</span>
+        <strong>${Number(c.count) || 0}</strong>
         <div class="owasp-bar"><span style="width:${pct}%"></span></div>
-        <small>${rules || t("owasp.no_rules", "no hub rules")}</small>
+        <small>${ruleText}</small>
       </button>`
     }).join("")
     tiles.onclick = (ev) => {
@@ -820,12 +858,12 @@ function renderOwasp(data) {
   const body = $("owaspFindings")
   if (body) {
     body.innerHTML = findings.map((f) => `<tr>
-      <td>${fmtTime(f.when)}</td>
-      <td><code>${f.ip || "—"}</code></td>
-      <td>${f.scenario || "—"}${Number(f.events) > 1 ? " ×" + f.events : ""}</td>
-      <td>${f.owasp || "none"}</td>
+      <td>${esc(fmtTime(f.when))}</td>
+      <td><code>${esc(f.ip || "—")}</code></td>
+      <td>${esc(f.scenario || "—")}${Number(f.events) > 1 ? " ×" + esc(f.events) : ""}</td>
+      <td>${esc(owaspLabel(data, f.owasp))}</td>
       <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
-      <td>${f.confidence || "—"}</td>
+      <td>${esc(f.confidence || "—")}</td>
     </tr>`).join("") || `<tr><td colspan="6">${t("owasp.empty", "No correlated findings")}</td></tr>`
   }
   const attack = $("owaspAttack")
@@ -953,13 +991,13 @@ function renderMitre(data) {
   const body = $("mitreFindings")
   if (body) {
     body.innerHTML = findings.map((f) => `<tr>
-      <td>${fmtTime(f.when)}</td>
-      <td><code>${f.ip || "—"}</code></td>
-      <td>${f.cn || "—"}</td>
-      <td>${f.scenario || "—"}${Number(f.events) > 1 ? " ×" + f.events : ""}</td>
+      <td>${esc(fmtTime(f.when))}</td>
+      <td><code>${esc(f.ip || "—")}</code></td>
+      <td>${esc(f.cn || "—")}</td>
+      <td>${esc(f.scenario || "—")}${Number(f.events) > 1 ? " ×" + esc(f.events) : ""}</td>
       <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
-      <td>${f.owasp || "none"}</td>
-      <td>${f.confidence || "—"}</td>
+      <td>${esc(owaspLabel(data, f.owasp))}</td>
+      <td>${esc(f.confidence || "—")}</td>
     </tr>`).join("") || `<tr><td colspan="7">${t("mitre.empty", "No ATT&CK findings")}</td></tr>`
   }
   const uncovered = $("mitreUncovered")
@@ -1143,7 +1181,7 @@ function fmtScan(v) {
 
 function scannerTipHtml(h) {
   if (!h) return ""
-  return "<div class=\"tip-h\">" + esc(h.label || "") + "</div>" +
+  return "<div class=\"tip-h\">" + esc(t("dash.scanners.bucket", "Hour starting")) + " " + esc(h.label || "") + "</div>" +
     "<div><span>" + t("dash.kpi.events", "Events") + "</span><b>" + (h.events || 0) + "</b></div>" +
     "<div><span>" + t("dash.scanners.sources", "Sources") + "</span><b>" + (h.sources || 0) + "</b></div>" +
     "<div><span>" + t("dash.kpi.blocked", "Blocked") + "</span><b>" + (h.blocked || 0) + "</b></div>" +
@@ -1153,7 +1191,7 @@ function scannerTipHtml(h) {
 function scannerFocusText(h, pack) {
   if (!h) return t("dash.scanners.focus_idle", "Hover or click an hour for counts.")
   const tz = (pack && pack.tz) || "GMT-3"
-  return h.label + " " + tz +
+  return t("dash.scanners.bucket", "Hour starting") + " " + h.label + " " + tz +
     " · " + t("dash.kpi.events", "Events") + " " + (h.events || 0) +
     " · " + t("dash.scanners.sources", "Sources") + " " + (h.sources || 0) +
     " · " + t("dash.kpi.blocked", "Blocked") + " " + (h.blocked || 0) +

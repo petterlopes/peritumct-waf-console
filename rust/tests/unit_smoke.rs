@@ -175,6 +175,276 @@ fn control_export_and_audit_tail_offline() {
 }
 
 #[test]
+fn http_status_ok_accepts_whole_floats() {
+    assert!(status::http_status_ok(&json!(200.0)));
+    assert!(status::http_status_ok(&json!("302.0")));
+    assert!(!status::http_status_ok(&json!(404.5)));
+}
+
+#[test]
+fn canonical_ip_collapses_ipv6_forms() {
+    use waf_console::netguard::{canonical_ip, same_ip};
+    assert_eq!(canonical_ip("2001:db8:0:0:0:0:0:1"), "2001:db8::1");
+    assert!(same_ip("2001:db8::1", "2001:db8:0:0:0:0:0:1"));
+    assert!(!same_ip("203.0.113", "203.0.113.1"));
+    assert_eq!(canonical_ip("not-an-ip"), "not-an-ip");
+}
+
+#[test]
+fn repeated_offenders_merge_ipv6_spellings() {
+    use waf_console::lapi::repeated_offenders;
+    let alerts = vec![
+        json!({"scenario": "http-probing", "source": {"ip": "2001:db8::1"}}),
+        json!({"scenario": "http-probing", "source": {"ip": "2001:db8:0:0:0:0:0:1"}}),
+    ];
+    let out = repeated_offenders(&alerts, 8);
+    let items = out["items"].as_array().expect("items");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["ip"], "2001:db8::1");
+    assert_eq!(items[0]["events"], 2);
+}
+
+#[test]
+fn hour_label_is_bucket_start_not_clock_hour() {
+    use chrono::{TimeZone, Utc};
+    use waf_console::dashboard::{self, BuildOptions};
+
+    // 17:30 UTC is 14:30 GMT-3. An event at 16:45 UTC is 13:45 GMT-3,
+    // 45 minutes ago, so it belongs in the bucket that starts at 13:30.
+    let now = Utc.with_ymd_and_hms(2026, 6, 15, 17, 30, 0).unwrap();
+    let event = Utc
+        .with_ymd_and_hms(2026, 6, 15, 16, 45, 0)
+        .unwrap()
+        .to_rfc3339();
+    let alerts = vec![json!({
+        "created_at": event,
+        "scenario": "http-probing",
+        "source": {"ip": "203.0.113.10", "cn": "BR"},
+        "meta": [{"key": "http_path", "value": "/"}]
+    })];
+    let opts = BuildOptions {
+        decisions: None,
+        engine: None,
+        hosts: None,
+        host: "",
+        origin_probes: None,
+        public_probes: None,
+        hub_rules: None,
+        now: Some(now),
+        filters: None,
+        appsec: None,
+        edge: None,
+        alerts_fetch_limit: Some(10),
+    };
+    let out = dashboard::build(&alerts, opts);
+    let labels = out["series"]["labels"].as_array().expect("labels");
+    assert_eq!(labels.len(), 24);
+    assert_eq!(labels[23], "13:30");
+    let events = out["series"]["events"].as_array().expect("events");
+    assert_eq!(events[23], 1);
+    assert_eq!(out["scanners"]["stats"]["last_hour_events"], 1);
+    assert_eq!(out["scanners"]["last_hour"]["label"], "13:30");
+}
+
+#[test]
+fn top_pct_is_share_of_all_events_not_the_slice() {
+    use chrono::{Duration, Utc};
+    use std::collections::HashMap;
+    use waf_console::dashboard::{self, BuildOptions};
+
+    let now = Utc::now();
+    let mut alerts = Vec::new();
+    for _ in 0..6 {
+        alerts.push(json!({
+            "created_at": (now - Duration::minutes(5)).to_rfc3339(),
+            "scenario": "http-probing",
+            "source": {"ip": "203.0.113.10", "cn": "BR"}
+        }));
+    }
+    for _ in 0..3 {
+        alerts.push(json!({
+            "created_at": (now - Duration::minutes(5)).to_rfc3339(),
+            "scenario": "http-probing",
+            "source": {"ip": "203.0.113.11", "cn": "US"}
+        }));
+    }
+    alerts.push(json!({
+        "created_at": (now - Duration::minutes(5)).to_rfc3339(),
+        "scenario": "http-probing",
+        "source": {"ip": "203.0.113.12", "cn": "DE"}
+    }));
+    let mut filters = HashMap::new();
+    filters.insert("country".into(), "BR".into());
+    let opts = BuildOptions {
+        decisions: None,
+        engine: None,
+        hosts: None,
+        host: "",
+        origin_probes: None,
+        public_probes: None,
+        hub_rules: None,
+        now: Some(now),
+        filters: Some(&filters),
+        appsec: None,
+        edge: None,
+        alerts_fetch_limit: Some(50),
+    };
+    let filtered = dashboard::build(&alerts, opts);
+    assert_eq!(filtered["sample"]["in_window"], 10);
+    assert_eq!(filtered["kpis"]["events"], 6);
+
+    let opts_all = BuildOptions {
+        decisions: None,
+        engine: None,
+        hosts: None,
+        host: "",
+        origin_probes: None,
+        public_probes: None,
+        hub_rules: None,
+        now: Some(now),
+        filters: None,
+        appsec: None,
+        edge: None,
+        alerts_fetch_limit: Some(50),
+    };
+    let all = dashboard::build(&alerts, opts_all);
+    let ips = all["top"]["ips"]["items"].as_array().expect("ips");
+    assert_eq!(ips[0]["count"], 6);
+    assert_eq!(ips[0]["pct"].as_f64(), Some(60.0));
+    assert_eq!(ips[1]["pct"].as_f64(), Some(30.0));
+    assert_eq!(ips[2]["pct"].as_f64(), Some(10.0));
+}
+
+#[test]
+fn naive_timestamp_counts_as_utc() {
+    use chrono::{TimeZone, Utc};
+    use waf_console::dashboard::{self, BuildOptions};
+
+    let now = Utc.with_ymd_and_hms(2026, 6, 15, 12, 0, 0).unwrap();
+    let alerts = vec![json!({
+        "created_at": "2026-06-15T11:00:00",
+        "scenario": "http-probing",
+        "source": {"ip": "198.51.100.9"}
+    })];
+    let opts = BuildOptions {
+        decisions: None,
+        engine: None,
+        hosts: None,
+        host: "",
+        origin_probes: None,
+        public_probes: None,
+        hub_rules: None,
+        now: Some(now),
+        filters: None,
+        appsec: None,
+        edge: None,
+        alerts_fetch_limit: Some(10),
+    };
+    let out = dashboard::build(&alerts, opts);
+    assert_eq!(out["sample"]["in_window"], 1);
+    assert_eq!(out["sample"]["skipped_out_of_window"], 0);
+    assert_eq!(out["kpis"]["events"], 1);
+}
+
+#[test]
+fn correlate_order_and_stix_ip_family() {
+    use waf_console::correlate;
+
+    let alerts = vec![
+        json!({
+            "scenario": "anomaly score out-of-band: lfi: 5, anomaly: 5",
+            "source": {"ip": "2001:db8:0:0:0:0:0:1"},
+            "created_at": "2026-01-01T00:00:00Z"
+        }),
+        json!({
+            "scenario": "crowdsecurity/vpatch-env-access",
+            "source": {"ip": "2001:db8::1"},
+            "created_at": "2026-01-01T01:00:00Z"
+        }),
+    ];
+    let data = correlate::correlate(&alerts, None);
+    let owasp = data["owasp"].as_array().expect("owasp");
+    let codes: Vec<&str> = owasp
+        .iter()
+        .filter_map(|v| v.get("code").and_then(|c| c.as_str()))
+        .collect();
+    assert_eq!(
+        codes,
+        vec!["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10"]
+    );
+    assert_eq!(owasp[0]["id"], "A01:2025");
+    assert_eq!(owasp[2]["name"], "Software Supply Chain Failures");
+    assert_eq!(owasp[4]["name"], "Injection");
+    assert_eq!(owasp[9]["name"], "Mishandling of Exceptional Conditions");
+    assert!(owasp[4]["url"]
+        .as_str()
+        .unwrap_or("")
+        .starts_with("https://top10.owasp.org/2025/"));
+    let findings = data["findings"].as_array().expect("findings");
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0]["ip"], "2001:db8::1");
+    assert_eq!(findings[0]["events"], 2);
+    let attack = findings[0]["attack"].as_array().expect("attack");
+    assert_eq!(attack[0], "T1190");
+    assert_eq!(attack[1], "T1595");
+    let techniques = data["mitre"]["techniques"].as_array().expect("techniques");
+    assert_eq!(techniques[0]["id"], "T1190");
+    assert_eq!(techniques[1]["id"], "T1595");
+
+    let bundle = correlate::stix_bundle(&data);
+    let objects = bundle["objects"].as_array().expect("objects");
+    let patterns: Vec<&str> = objects
+        .iter()
+        .filter_map(|o| o.get("pattern").and_then(|p| p.as_str()))
+        .collect();
+    assert!(patterns.iter().any(|p| p.contains("ipv6-addr:value = '2001:db8::1'")));
+    assert!(patterns.iter().all(|p| !p.contains("ipv4-addr:value = '2001:")));
+}
+
+#[test]
+fn secret_insight_ignores_environment_suffix() {
+    use chrono::{Duration, Utc};
+    use waf_console::dashboard::{self, BuildOptions};
+
+    let now = Utc::now();
+    let stamp = (now - Duration::minutes(2)).to_rfc3339();
+    let alerts = vec![
+        json!({
+            "created_at": stamp,
+            "scenario": "http-probing",
+            "source": {"ip": "203.0.113.10"},
+            "meta": [{"key": "http_path", "value": "/.environment"}]
+        }),
+        json!({
+            "created_at": stamp,
+            "scenario": "http-probing",
+            "source": {"ip": "203.0.113.11"},
+            "meta": [{"key": "http_path", "value": "/.aws"}]
+        }),
+    ];
+    let opts = BuildOptions {
+        decisions: None,
+        engine: None,
+        hosts: None,
+        host: "",
+        origin_probes: None,
+        public_probes: None,
+        hub_rules: None,
+        now: Some(now),
+        filters: None,
+        appsec: None,
+        edge: None,
+        alerts_fetch_limit: Some(10),
+    };
+    let out = dashboard::build(&alerts, opts);
+    let items = out["action_items"].as_array().expect("items");
+    let env = items.iter().find(|a| a["id"] == "env-probe").expect("insight");
+    let title = env["title"].as_str().unwrap_or("");
+    assert!(title.contains("1 source"), "{title}");
+    assert!(!title.contains("2 source"));
+}
+
+#[test]
 fn machines_status_soft_fails_offline() {
     use waf_console::lapi::machines_status;
     // Without cscli/NOMAD this returns ok:false and empty items — never panics.

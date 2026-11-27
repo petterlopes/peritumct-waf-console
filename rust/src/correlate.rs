@@ -1,4 +1,4 @@
-//! OWASP Top 10:2021 correlation + local CTI export (port of correlate.py).
+//! OWASP Top 10:2025 correlation + local CTI export (port of correlate.py).
 
 #[path = "sha1_digest.rs"]
 mod sha1_digest;
@@ -10,21 +10,23 @@ use chrono::Utc;
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-pub const OWASP_SOURCE: &str = "https://owasp.org/Top10/2021/";
+use crate::netguard;
 
-pub fn owasp_2021() -> &'static [Value] {
+pub const OWASP_SOURCE: &str = "https://top10.owasp.org/2025/";
+
+pub fn owasp_2025() -> &'static [Value] {
     static OWASP: LazyLock<Vec<Value>> = LazyLock::new(|| {
         vec![
-            json!({"code":"A01","id":"A01:2021","name":"Broken Access Control","url":"https://owasp.org/Top10/2021/A01_2021-Broken_Access_Control.html"}),
-            json!({"code":"A02","id":"A02:2021","name":"Cryptographic Failures","url":"https://owasp.org/Top10/2021/A02_2021-Cryptographic_Failures.html"}),
-            json!({"code":"A03","id":"A03:2021","name":"Injection","url":"https://owasp.org/Top10/2021/A03_2021-Injection.html"}),
-            json!({"code":"A04","id":"A04:2021","name":"Insecure Design","url":"https://owasp.org/Top10/2021/A04_2021-Insecure_Design.html"}),
-            json!({"code":"A05","id":"A05:2021","name":"Security Misconfiguration","url":"https://owasp.org/Top10/2021/A05_2021-Security_Misconfiguration.html"}),
-            json!({"code":"A06","id":"A06:2021","name":"Vulnerable and Outdated Components","url":"https://owasp.org/Top10/2021/A06_2021-Vulnerable_and_Outdated_Components.html"}),
-            json!({"code":"A07","id":"A07:2021","name":"Identification and Authentication Failures","url":"https://owasp.org/Top10/2021/A07_2021-Identification_and_Authentication_Failures.html"}),
-            json!({"code":"A08","id":"A08:2021","name":"Software and Data Integrity Failures","url":"https://owasp.org/Top10/2021/A08_2021-Software_and_Data_Integrity_Failures.html"}),
-            json!({"code":"A09","id":"A09:2021","name":"Security Logging and Monitoring Failures","url":"https://owasp.org/Top10/2021/A09_2021-Security_Logging_and_Monitoring_Failures.html"}),
-            json!({"code":"A10","id":"A10:2021","name":"Server-Side Request Forgery (SSRF)","url":"https://owasp.org/Top10/2021/A10_2021-Server-Side_Request_Forgery_%28SSRF%29.html"}),
+            json!({"code":"A01","id":"A01:2025","name":"Broken Access Control","url":"https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/"}),
+            json!({"code":"A02","id":"A02:2025","name":"Security Misconfiguration","url":"https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/"}),
+            json!({"code":"A03","id":"A03:2025","name":"Software Supply Chain Failures","url":"https://top10.owasp.org/2025/A03_2025-Software_Supply_Chain_Failures/"}),
+            json!({"code":"A04","id":"A04:2025","name":"Cryptographic Failures","url":"https://top10.owasp.org/2025/A04_2025-Cryptographic_Failures/"}),
+            json!({"code":"A05","id":"A05:2025","name":"Injection","url":"https://top10.owasp.org/2025/A05_2025-Injection/"}),
+            json!({"code":"A06","id":"A06:2025","name":"Insecure Design","url":"https://top10.owasp.org/2025/A06_2025-Insecure_Design/"}),
+            json!({"code":"A07","id":"A07:2025","name":"Authentication Failures","url":"https://top10.owasp.org/2025/A07_2025-Authentication_Failures/"}),
+            json!({"code":"A08","id":"A08:2025","name":"Software or Data Integrity Failures","url":"https://top10.owasp.org/2025/A08_2025-Software_or_Data_Integrity_Failures/"}),
+            json!({"code":"A09","id":"A09:2025","name":"Security Logging and Alerting Failures","url":"https://top10.owasp.org/2025/A09_2025-Security_Logging_and_Alerting_Failures/"}),
+            json!({"code":"A10","id":"A10:2025","name":"Mishandling of Exceptional Conditions","url":"https://top10.owasp.org/2025/A10_2025-Mishandling_of_Exceptional_Conditions/"}),
         ]
     });
     OWASP.as_slice()
@@ -125,6 +127,23 @@ pub fn attack_catalog() -> &'static HashMap<&'static str, Value> {
     &ATTACK
 }
 
+/// Catalog order. HashMap iteration is not stable, and CTI exports must not reshuffle.
+const ATTACK_IDS: &[&str] = &[
+    "T1190",
+    "T1595",
+    "T1110",
+    "T1059",
+    "T1083",
+    "T1046",
+    "T1189",
+    "T1505",
+    "T1090",
+    "T1562",
+    "T1600",
+    "T1068",
+    "T1505.003",
+];
+
 static TACTIC_ORDER: &[&str] = &[
     "Reconnaissance",
     "Initial Access",
@@ -179,12 +198,13 @@ struct ClassRule {
 
 static CLASSIFY_RULES: LazyLock<Vec<ClassRule>> = LazyLock::new(|| {
     vec![
-        rule(r"(?i)ssrf", "A10", &["T1190"], "high"),
-        rule(r"(?i)sqli|sql.?inject", "A03", &["T1190"], "high"),
-        rule(r"(?i)xss|cross.?site.?script", "A03", &["T1190"], "high"),
+        rule(r"(?i)ssrf", "A01", &["T1190"], "high"),
+        rule(r"(?i)log4j|jndi", "A03", &["T1190", "T1059"], "high"),
+        rule(r"(?i)sqli|sql.?inject", "A05", &["T1190"], "high"),
+        rule(r"(?i)xss|cross.?site.?script", "A05", &["T1190"], "high"),
         rule(
-            r"(?i)rce|remote.?code|command.?inject|php.?inject|log4j|jndi",
-            "A03",
+            r"(?i)rce|remote.?code|command.?inject|php.?inject",
+            "A05",
             &["T1190", "T1059", "T1068"],
             "high",
         ),
@@ -196,7 +216,7 @@ static CLASSIFY_RULES: LazyLock<Vec<ClassRule>> = LazyLock::new(|| {
         ),
         rule(
             r"(?i)rfi|remote.?file.?inclusion",
-            "A03",
+            "A05",
             &["T1190"],
             "high",
         ),
@@ -220,30 +240,50 @@ static CLASSIFY_RULES: LazyLock<Vec<ClassRule>> = LazyLock::new(|| {
             &["T1110"],
             "high",
         ),
-        rule(r"(?i)xmlrpc", "A05", &["T1595"], "medium"),
+        rule(r"(?i)xxe|xml.?external.?entity", "A02", &["T1190"], "high"),
+        rule(r"(?i)xmlrpc", "A02", &["T1595"], "medium"),
         rule(
             r"(?i)waf.?bypass|disable.?security|impair.?defense",
-            "A05",
+            "A02",
             &["T1562"],
             "medium",
         ),
         rule(
             r"(?i)weak.?crypto|insecure.?tls",
-            "A02",
+            "A04",
             &["T1600"],
             "medium",
         ),
-        rule(r"(?i)vpatch|cve-\d{4}", "A06", &["T1190"], "medium"),
+        rule(
+            r"(?i)deserial",
+            "A08",
+            &["T1190"],
+            "high",
+        ),
+        // Vendor-confirmed nginx HTTP/2 RCEs. Exact ids only; bare "nginx" stays unclassified.
+        rule(
+            r"(?i)nginx2shell|nginx2root|cve-2026-123007|cve-2026-123633",
+            "A03",
+            &["T1190"],
+            "high",
+        ),
+        rule(r"(?i)vpatch|cve-\d{4}", "A03", &["T1190"], "medium"),
         rule(
             r"(?i)wordpress.?scan|http-wordpress",
-            "A05",
+            "A02",
             &["T1595"],
             "medium",
         ),
-        rule(r"(?i)wordpress", "A06", &["T1190"], "medium"),
+        rule(r"(?i)wordpress", "A03", &["T1190"], "medium"),
+        rule(
+            r"(?i)fail-?open|failing.?open|stack.?trace|verbose.?error|error.?disclosure|uncaught.?exception",
+            "A10",
+            &["T1595"],
+            "medium",
+        ),
         rule(
             r"(?i)probing|scanner|http-crawl|bad-user-agent|open-proxy|http-scan",
-            "A05",
+            "A02",
             &["T1595"],
             "medium",
         ),
@@ -266,19 +306,48 @@ fn rule(
 
 fn crs_class(gid: &str) -> Option<(&'static str, &'static [&'static str], &'static str)> {
     match gid {
-        "913" | "920" | "921" => Some(("A05", &["T1595"], "medium")),
+        "913" | "920" | "921" => Some(("A02", &["T1595"], "medium")),
         "930" => Some(("A01", &["T1190"], "high")),
-        "931" | "941" | "942" | "944" => Some(("A03", &["T1190"], "high")),
-        "932" => Some(("A03", &["T1190", "T1059", "T1068"], "high")),
-        "933" => Some(("A03", &["T1190", "T1059"], "high")),
-        "934" => Some(("A10", &["T1190"], "high")),
+        "931" | "941" | "942" | "944" => Some(("A05", &["T1190"], "high")),
+        "932" => Some(("A05", &["T1190", "T1059", "T1068"], "high")),
+        "933" => Some(("A05", &["T1190", "T1059"], "high")),
+        "934" => Some(("A01", &["T1190"], "high")),
         "943" => Some(("A07", &["T1110"], "medium")),
         _ => None,
     }
 }
 
+pub fn virtual_patches() -> Value {
+    json!([
+        {
+            "id": "nginx-http2-2026",
+            "owasp": "A03",
+            "owasp_id": "A03:2025",
+            "attack": ["T1190"],
+            "confidence": "high",
+            "fixed_stable": "1.30.7",
+            "fixed_mainline": "1.31.9",
+            "source": "https://nginx.org/en/security_advisories.html",
+            "affected": [
+                {
+                    "cve": "CVE-2026-123007",
+                    "summary": "Memory corruption in HTTP/2 flow control",
+                    "vulnerable": "1.9.5-1.31.8",
+                    "fixed": "1.30.7+, 1.31.9+"
+                },
+                {
+                    "cve": "CVE-2026-123633",
+                    "summary": "Use-after-free in HTTP/2",
+                    "vulnerable": "1.19.7-1.31.8",
+                    "fixed": "1.30.7+, 1.31.9+"
+                }
+            ]
+        }
+    ])
+}
+
 fn owasp_by_code() -> HashMap<String, Value> {
-    owasp_2021()
+    owasp_2025()
         .iter()
         .filter_map(|v| {
             let code = v.get("code")?.as_str()?.to_string();
@@ -441,7 +510,7 @@ fn alert_ip(alert: &Map<String, Value>) -> String {
         .and_then(|v| v.as_str())
         .unwrap_or("");
     if !ip.is_empty() {
-        return ip.to_string();
+        return netguard::canonical_ip(ip);
     }
     if let Some(events) = alert.get("events").and_then(|v| v.as_array()) {
         if let Some(ev) = events.first().and_then(|v| v.as_object()) {
@@ -450,12 +519,13 @@ fn alert_ip(alert: &Map<String, Value>) -> String {
                 .and_then(|v| v.as_object())
                 .cloned()
                 .unwrap_or_default();
-            return ev_src
-                .get("ip")
-                .or_else(|| ev_src.get("value"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            return netguard::canonical_ip(
+                ev_src
+                    .get("ip")
+                    .or_else(|| ev_src.get("value"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(""),
+            );
         }
     }
     String::new()
@@ -571,7 +641,7 @@ pub fn connectors() -> Vec<Value> {
         ),
         connector(
             "INTERNAL_ENRICHMENT",
-            "OWASP Top 10:2021",
+            "OWASP Top 10:2025",
             "local-catalog",
             "configured",
             &format!("CrowdSec scenario/AppSec/CRS IDs mapped to A01–A10. {OWASP_SOURCE}"),
@@ -632,8 +702,7 @@ pub fn scrub(value: Value) -> Value {
 }
 
 fn collapse_findings(findings: Vec<Value>) -> Vec<Value> {
-    let catalog = attack_catalog();
-    let attack_order: Vec<&str> = catalog.keys().copied().collect();
+    let attack_order: &[&str] = ATTACK_IDS;
     let mut merged: HashMap<(String, String), Value> = HashMap::new();
     let mut order: Vec<(String, String)> = Vec::new();
     let rank = |c: &str| match c {
@@ -803,7 +872,7 @@ fn recount(catalog: &mut HashMap<String, Value>, findings: &[Value]) -> HashMap<
 
 pub fn correlate(alerts: &[Value], hub_rules: Option<&[String]>) -> Value {
     let mut catalog: HashMap<String, Value> = HashMap::new();
-    for item in owasp_2021() {
+    for item in owasp_2025() {
         let code = item
             .get("code")
             .and_then(|v| v.as_str())
@@ -866,16 +935,24 @@ pub fn correlate(alerts: &[Value], hub_rules: Option<&[String]>) -> Value {
     }
     let findings = collapse_findings(findings);
     let attack_counts = recount(&mut catalog, &findings);
-    let owasp_list: Vec<Value> = catalog.values().cloned().collect();
-    let attack_list: Vec<Value> = attack_catalog()
+    let mut owasp_list: Vec<Value> = catalog.values().cloned().collect();
+    owasp_list.sort_by(|a, b| {
+        a.get("code")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .cmp(b.get("code").and_then(|v| v.as_str()).unwrap_or(""))
+    });
+    let catalog_by_id = attack_catalog();
+    let attack_list: Vec<Value> = ATTACK_IDS
         .iter()
-        .map(|(tid, meta)| {
-            json!({
+        .filter_map(|tid| {
+            let meta = catalog_by_id.get(tid)?;
+            Some(json!({
                 "id": tid,
                 "name": meta.get("name"),
                 "url": meta.get("url"),
                 "count": attack_counts.get(*tid).copied().unwrap_or(0),
-            })
+            }))
         })
         .collect();
     let payload = json!({
@@ -887,6 +964,7 @@ pub fn correlate(alerts: &[Value], hub_rules: Option<&[String]>) -> Value {
         "attack": attack_list,
         "mitre": mitre_block(&findings, &attack_counts),
         "connectors": connectors(),
+        "advisories": virtual_patches(),
     });
     scrub(payload)
 }
@@ -910,7 +988,10 @@ fn mitre_block(findings: &[Value], attack_counts: &HashMap<String, i64>) -> Valu
         }
     }
     let mut techniques = Vec::new();
-    for (tid, meta) in catalog.iter() {
+    for tid in ATTACK_IDS {
+        let Some(meta) = catalog.get(tid) else {
+            continue;
+        };
         let owasp: Vec<String> = tech_owasp
             .get(tid)
             .map(|s| {
@@ -962,6 +1043,28 @@ fn mitre_block(findings: &[Value], attack_counts: &HashMap<String, i64>) -> Valu
         "findings": findings,
         "uncovered": uncovered,
     })
+}
+
+fn stix_literal(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+fn stix_indicator_pattern(ip: &str, scenario: &str) -> String {
+    let ip = ip.trim();
+    if !ip.is_empty() {
+        let kind = if ip.contains(':') {
+            "ipv6-addr"
+        } else {
+            "ipv4-addr"
+        };
+        return format!("[{kind}:value = '{}']", stix_literal(ip));
+    }
+    let scenario = if scenario.is_empty() {
+        "unknown"
+    } else {
+        scenario
+    };
+    format!("[x-waf-scenario:value = '{}']", stix_literal(scenario))
 }
 
 fn stix_id(kind: &str, seed: &str) -> String {
@@ -1016,11 +1119,17 @@ pub fn stix_bundle(payload: &Value) -> Value {
                 "id": ap_id,
                 "created": now,
                 "modified": now,
-                "name": format!("{code}:2021 {}", cat.get("name").and_then(|v| v.as_str()).unwrap_or("")).trim(),
+                "name": format!(
+                    "{} {}",
+                    cat.get("id").and_then(|v| v.as_str()).unwrap_or(code),
+                    cat.get("name").and_then(|v| v.as_str()).unwrap_or("")
+                )
+                .trim()
+                .to_string(),
                 "description": cat.get("url").unwrap_or(&json!(OWASP_SOURCE)),
                 "external_references": [{
                     "source_name": "owasp",
-                    "external_id": cat.get("id").unwrap_or(&json!(format!("{code}:2021"))),
+                    "external_id": cat.get("id").unwrap_or(&json!(code)),
                     "url": cat.get("url").unwrap_or(&json!(OWASP_SOURCE)),
                 }],
             }));
@@ -1076,18 +1185,7 @@ pub fn stix_bundle(payload: &Value) -> Value {
             ]
             .join("|");
             let indicator_id = stix_id("indicator", if seed.is_empty() { scenario } else { &seed });
-            let pattern = if !ip.is_empty() {
-                format!("[ipv4-addr:value = '{ip}']")
-            } else {
-                format!(
-                    "[x-waf-scenario:value = '{}']",
-                    if scenario.is_empty() {
-                        "unknown"
-                    } else {
-                        scenario
-                    }
-                )
-            };
+            let pattern = stix_indicator_pattern(ip, scenario);
             objects.push(json!({
                 "type": "indicator",
                 "spec_version": "2.1",
@@ -1144,7 +1242,7 @@ pub fn misp_event(payload: &Value) -> Value {
     let now = Utc::now().format("%Y-%m-%d").to_string();
     let mut attributes = Vec::new();
     let tags = vec![
-        json!({"name": "owasp:top10:2021"}),
+        json!({"name": "owasp:top10:2025"}),
         json!({"name": "tlp:amber"}),
     ];
     let catalog = attack_catalog();
@@ -1211,7 +1309,7 @@ pub fn misp_event(payload: &Value) -> Value {
     }
     scrub(json!({
         "Event": {
-            "info": "WAF console CrowdSec findings (OWASP Top 10:2021)",
+            "info": "WAF console CrowdSec findings (OWASP Top 10:2025)",
             "date": now,
             "threat_level_id": "2",
             "analysis": "1",
@@ -1240,7 +1338,7 @@ pub fn thehive_alert(payload: &Value) -> Value {
     let mut tags = vec![
         "waf-console".to_string(),
         "crowdsec".to_string(),
-        "owasp-top10-2021".to_string(),
+        "owasp-top10-2025".to_string(),
     ];
     for finding in &findings {
         let ip = finding
@@ -1283,7 +1381,7 @@ pub fn thehive_alert(payload: &Value) -> Value {
         "source": "crowdsec-lapi",
         "sourceRef": format!("waf-findings-{}", Utc::now().format("%Y%m%dT%H%M%SZ")),
         "title": "WAF console CrowdSec findings",
-        "description": "Local export of CrowdSec LAPI/AppSec findings correlated with OWASP Top 10:2021. push=False.",
+        "description": "Local export of CrowdSec LAPI/AppSec findings correlated with OWASP Top 10:2025. push=False.",
         "severity": 2,
         "status": "New",
         "follow": false,
@@ -1294,5 +1392,5 @@ pub fn thehive_alert(payload: &Value) -> Value {
 }
 
 pub fn owasp_list() -> &'static [Value] {
-    owasp_2021()
+    owasp_2025()
 }

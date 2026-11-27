@@ -7,6 +7,7 @@ use chrono::{DateTime, FixedOffset, TimeZone, Timelike, Utc};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
+use crate::netguard;
 use crate::status;
 
 pub const SOURCE: &str = "crowdsec-lapi";
@@ -72,8 +73,15 @@ static SECRET_SCAN_PATH: LazyLock<Regex> = LazyLock::new(|| {
         .expect("SECRET_SCAN_PATH")
 });
 
+/// Secret-file insight: `.env` (and `.env.*`) or `.aws`, as a path segment.
+/// `/.environment` is not a secret-file probe.
+static SECRET_INSIGHT_PATH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:^|/)(?:\.env(?:\.[^/]+)?|\.aws)(?:/|$)").expect("SECRET_INSIGHT_PATH")
+});
+
 const SCANNER_NOTE: &str = "HTTP AppSec/LAPI scanner detections in this window. \
 Hover or click an hour for time, quantity and action split. \
+Each label is the GMT-3 start of a 60-minute bucket ending at the next label. \
 The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. \
 L3/L4 scans (SYN/hping) are invisible here. Updates every 15s.";
 
@@ -424,7 +432,30 @@ fn parse_time(alert: &Map<String, Value>) -> Option<DateTime<Utc>> {
     if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(&text, "%Y-%m-%dT%H:%M:%S%.f%z") {
         return Some(dt.and_utc());
     }
-    None
+    parse_naive_utc(&text)
+}
+
+/// CrowdSec sometimes emits a zone-less timestamp. Treat it as UTC, matching the Python port.
+fn parse_naive_utc(text: &str) -> Option<DateTime<Utc>> {
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let offset_dash = text.rfind('-').is_some_and(|i| i > 10);
+    if text.contains('+') || offset_dash {
+        return None;
+    }
+    let normalized = if text.contains('T') {
+        text.to_string()
+    } else {
+        text.replace(' ', "T")
+    };
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(&normalized, "%Y-%m-%dT%H:%M:%S%.f") {
+        return Some(naive.and_utc());
+    }
+    chrono::NaiveDateTime::parse_from_str(&normalized, "%Y-%m-%dT%H:%M:%S")
+        .ok()
+        .map(|naive| naive.and_utc())
 }
 
 fn match_host(alert: &Map<String, Value>, host: &str) -> bool {
@@ -449,8 +480,13 @@ fn match_filters(row: &Map<String, Value>, filters: &HashMap<String, String>) ->
         }
         let got = row.get(*key).map(|v| unwrap(v)).unwrap_or_default();
         match *key {
-            "path" | "ip" => {
+            "path" => {
                 if !got.contains(want) {
+                    return false;
+                }
+            }
+            "ip" => {
+                if !got.contains(want) && !netguard::same_ip(&got, want) {
                     return false;
                 }
             }
@@ -471,6 +507,11 @@ fn bump(counter: &mut HashMap<String, i64>, key: &str) {
 }
 
 fn top(counter: &HashMap<String, i64>, n: usize) -> Vec<Value> {
+    let population: i64 = counter
+        .iter()
+        .filter(|(k, _)| !k.is_empty())
+        .map(|(_, v)| *v)
+        .sum();
     let mut items: Vec<(String, i64)> = counter.iter().map(|(k, v)| (k.clone(), *v)).collect();
     items.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     let items: Vec<Value> = items
@@ -479,11 +520,8 @@ fn top(counter: &HashMap<String, i64>, n: usize) -> Vec<Value> {
         .take(n)
         .map(|(label, count)| json!({ "label": label, "count": count }))
         .collect();
-    let total: i64 = items
-        .iter()
-        .filter_map(|v| v.get("count").and_then(|c| c.as_i64()))
-        .sum();
-    let total = if total == 0 { 1 } else { total };
+    // Share of every counted event, not of the truncated top-N slice.
+    let total = if population <= 0 { 1 } else { population };
     items
         .into_iter()
         .map(|mut item| {
@@ -571,8 +609,18 @@ fn hour_bucket(dt: Option<DateTime<Utc>>, now: DateTime<Utc>) -> Option<usize> {
     let dt = dt?;
     let local_now = now.with_timezone(&*GMT3);
     let local_dt = dt.with_timezone(&*GMT3);
-    let hours = (local_now - local_dt).num_seconds() / 3600;
-    if hours < 0 || hours > 23 {
+    let secs = (local_now - local_dt).num_seconds();
+    if secs < 0 {
+        return None;
+    }
+    // Integer division truncates toward zero, so a timestamp 1s in the future
+    // would otherwise land in the current bucket. The inclusive 24h endpoint
+    // (exactly 86400s) belongs in the oldest bucket, with the rest of [23h, 24h].
+    let mut hours = secs / 3600;
+    if hours == 24 && secs == 24 * 3600 {
+        hours = 23;
+    }
+    if hours > 23 {
         return None;
     }
     Some((23 - hours) as usize)
@@ -610,10 +658,13 @@ fn hour_series(rows: &[Map<String, Value>], now: DateTime<Utc>) -> Value {
             logged[idx] += 1;
         }
     }
+    // Bucket i holds events with floor(age_hours) == (23 - i): the 60 minutes
+    // that start (24 - i) hours before `now`. Label that start in GMT-3.
+    // A clock-hour label (HH:00 of `now`) mis-files events from the previous hour.
     let mut labels = Vec::with_capacity(24);
     for i in 0..24 {
-        let hour = (local.hour() as i64 - (23 - i as i64)).rem_euclid(24);
-        labels.push(format!("{hour:02}:00"));
+        let start = local - chrono::Duration::hours(24 - i as i64);
+        labels.push(format!("{:02}:{:02}", start.hour(), start.minute()));
     }
     json!({
         "labels": labels,
@@ -819,7 +870,7 @@ fn action_items(
     let mut env_ips = std::collections::HashSet::new();
     for r in rows {
         let path = r.get("path").and_then(|v| v.as_str()).unwrap_or("");
-        if path.contains("/.env") || path.contains("/.aws/") {
+        if SECRET_INSIGHT_PATH.is_match(path) {
             if let Some(ip) = r.get("ip").and_then(|v| v.as_str()) {
                 if !ip.is_empty() {
                     env_ips.insert(ip.to_string());
@@ -865,7 +916,7 @@ fn action_items(
     if !ja4_counts.is_empty() {
         let (label, count) = ja4_counts
             .iter()
-            .max_by_key(|(_, c)| *c)
+            .max_by(|(k1, c1), (k2, c2)| c1.cmp(c2).then_with(|| k2.cmp(k1)))
             .map(|(k, v)| (k.clone(), *v))
             .unwrap();
         let sources: std::collections::HashSet<String> = rows
@@ -1092,6 +1143,7 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
     let mut rows: Vec<Map<String, Value>> = Vec::new();
     let fetched = alerts.len();
     let fetch_limit = opts.alerts_fetch_limit.unwrap_or(500).max(1);
+    let mut in_window = 0usize;
     let mut skipped_out_of_window = 0usize;
     for alert in alerts {
         let Some(alert_obj) = alert.as_object() else {
@@ -1108,16 +1160,18 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
             skipped_out_of_window += 1;
             continue;
         }
+        in_window += 1;
         let src = alert_map
             .get("source")
             .and_then(|v| v.as_object())
             .cloned()
             .unwrap_or_default();
-        let ip = src
-            .get("ip")
-            .or_else(|| src.get("value"))
-            .map(|v| unwrap(v))
-            .unwrap_or_default();
+        let ip = netguard::canonical_ip(
+            &src.get("ip")
+                .or_else(|| src.get("value"))
+                .map(|v| unwrap(v))
+                .unwrap_or_default(),
+        );
         let cn = alert_map
             .get("cn")
             .map(|v| unwrap(v))
@@ -1405,7 +1459,7 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
         "window_label": window_label,
         "sample": {
             "fetched": fetched,
-            "in_window": rows_mut.len(),
+            "in_window": in_window,
             "skipped_out_of_window": skipped_out_of_window,
             "fetch_limit": fetch_limit,
             "capped": sample_capped,

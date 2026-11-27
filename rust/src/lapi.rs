@@ -811,6 +811,31 @@ pub fn fetch_local_decisions() -> (Vec<Value>, Option<String>) {
     }
 }
 
+fn as_i64_loose(v: &Value) -> Option<i64> {
+    if let Some(n) = v.as_i64() {
+        return Some(n);
+    }
+    if let Some(n) = v.as_u64() {
+        return i64::try_from(n).ok();
+    }
+    if let Some(n) = v.as_f64() {
+        if n.is_finite() && n.fract() == 0.0 && n >= i64::MIN as f64 && n <= i64::MAX as f64 {
+            return Some(n as i64);
+        }
+    }
+    let text = v.as_str()?.trim();
+    if let Ok(n) = text.parse::<i64>() {
+        return Some(n);
+    }
+    text.parse::<f64>().ok().and_then(|n| {
+        if n.is_finite() && n.fract() == 0.0 {
+            Some(n as i64)
+        } else {
+            None
+        }
+    })
+}
+
 pub fn source_of(alert: &Map<String, Value>) -> Map<String, Value> {
     let mut src = alert
         .get("source")
@@ -836,12 +861,12 @@ pub fn source_of(alert: &Map<String, Value>) -> Map<String, Value> {
     {
         src.insert(k.clone(), v.clone());
     }
-    let ip = src
-        .get("ip")
-        .or_else(|| src.get("value"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    let ip = netguard::canonical_ip(
+        src.get("ip")
+            .or_else(|| src.get("value"))
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+    );
     let cn = src
         .get("cn")
         .or_else(|| src.get("country"))
@@ -896,10 +921,12 @@ pub fn source_of(alert: &Map<String, Value>) -> Map<String, Value> {
             .unwrap_or("")),
     );
     out.insert("id".into(), alert.get("id").cloned().unwrap_or(Value::Null));
-    out.insert(
-        "capacity".into(),
-        alert.get("events_count").cloned().unwrap_or(json!(1)),
-    );
+    let capacity = alert
+        .get("events_count")
+        .and_then(as_i64_loose)
+        .filter(|n| *n > 0)
+        .unwrap_or(1);
+    out.insert("capacity".into(), json!(capacity));
     out
 }
 
@@ -1178,7 +1205,8 @@ pub fn build_map(alerts: &[Value]) -> Value {
         });
         let cap = src
             .get("capacity")
-            .and_then(|v| v.as_i64().or_else(|| v.as_u64().map(|u| u as i64)))
+            .and_then(as_i64_loose)
+            .filter(|n| *n > 0)
             .unwrap_or(1);
         let count = slot.get("count").and_then(|v| v.as_i64()).unwrap_or(0) + cap;
         slot.insert("count".into(), json!(count));
@@ -1204,7 +1232,9 @@ pub fn build_map(alerts: &[Value]) -> Value {
     country_list.sort_by(|a, b| {
         let aa = a.get("count").and_then(|v| v.as_i64()).unwrap_or(0);
         let bb = b.get("count").and_then(|v| v.as_i64()).unwrap_or(0);
-        bb.cmp(&aa)
+        let na = a.get("cn").and_then(|v| v.as_str()).unwrap_or("");
+        let nb = b.get("cn").and_then(|v| v.as_str()).unwrap_or("");
+        bb.cmp(&aa).then_with(|| na.cmp(nb))
     });
     country_list.truncate(40);
     let mut payload = Map::new();
@@ -1378,7 +1408,7 @@ fn alert_source_ip(alert: &Value) -> Option<String> {
     src.get("ip")
         .or_else(|| src.get("value"))
         .and_then(|v| v.as_str())
-        .map(|s| s.trim().to_string())
+        .map(netguard::canonical_ip)
         .filter(|s| !s.is_empty())
 }
 
@@ -1394,7 +1424,7 @@ pub fn ip_dossier(ip: &str) -> Result<Value> {
             d.get("value")
                 .or_else(|| d.get("ip"))
                 .and_then(|v| v.as_str())
-                .map(|v| v == ip)
+                .map(|v| netguard::same_ip(v, &ip))
                 .unwrap_or(false)
         })
         .take(40)
@@ -1452,7 +1482,7 @@ pub fn repeated_offenders(alerts: &[Value], limit: usize) -> Value {
                 .get(&ip)
                 .map(|m| {
                     let mut v: Vec<_> = m.iter().collect();
-                    v.sort_by(|a, b| b.1.cmp(a.1));
+                    v.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
                     v.into_iter()
                         .take(3)
                         .map(|(k, c)| json!({"scenario": k, "count": c}))

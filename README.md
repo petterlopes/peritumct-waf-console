@@ -31,7 +31,7 @@ github.com/petterlopes/peritumct-waf-console
 
 Installing a protection engine is only part of the work. Operators need to know which domain is failing, why an IP was blocked, which rules exist, and when an exception is justified — without moving the admin UI to an external SaaS.
 
-PeritumCT WAF Console keeps that workflow **next to the engine**: LAPI alerts and decisions, per-FQDN AppSec policies, allowlists, Domains probes, metrics, a LAPI-based map, and local OWASP Top 10:2021 / MITRE ATT&CK correlation. CrowdSec detects; remediation components protect traffic; this console **operates and explains**.
+PeritumCT WAF Console keeps that workflow **next to the engine**: LAPI alerts and decisions, per-FQDN AppSec policies, allowlists, Domains probes, metrics, a LAPI-based map, and local OWASP Top 10:2025 / MITRE ATT&CK correlation. CrowdSec detects; remediation components protect traffic; this console **operates and explains**.
 
 ## Screenshots
 

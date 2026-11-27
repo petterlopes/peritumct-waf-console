@@ -60,6 +60,29 @@ def sanitize_hostname(host: str) -> str:
     return value
 
 
+def canonical_ip(raw: str) -> str:
+    """Canonical IP text. Non-addresses are returned trimmed, unchanged."""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return text
+
+
+def same_ip(a: str, b: str) -> bool:
+    """True when both strings parse as the same address."""
+    left = str(a or "").strip()
+    right = str(b or "").strip()
+    if not left or not right:
+        return False
+    try:
+        return ipaddress.ip_address(left) == ipaddress.ip_address(right)
+    except ValueError:
+        return False
+
+
 def assert_probe_server(value: str, *, name: str = "PUBLIC_IP") -> str:
     """PUBLIC_IP must be empty or a literal IPv4/IPv6 address (no DNS)."""
     raw = (value or "").strip()

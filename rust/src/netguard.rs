@@ -41,6 +41,30 @@ pub fn assert_probe_server(value: &str, name: &str) -> Result<String> {
         .map_err(|e| anyhow!("{name} must be a literal IP address: {e}"))
 }
 
+/// Canonical textual form of an IP. Non-addresses are returned trimmed, unchanged.
+pub fn canonical_ip(raw: &str) -> String {
+    let text = raw.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+    text.parse::<IpAddr>()
+        .map(|ip| ip.to_string())
+        .unwrap_or_else(|_| text.to_string())
+}
+
+/// True when both strings parse as the same address (compressed and expanded IPv6 match).
+pub fn same_ip(a: &str, b: &str) -> bool {
+    let a = a.trim();
+    let b = b.trim();
+    if a.is_empty() || b.is_empty() {
+        return false;
+    }
+    match (a.parse::<IpAddr>(), b.parse::<IpAddr>()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
+}
+
 pub fn assert_loopback_http_url(url: &str, name: &str) -> Result<String> {
     let raw = url.trim();
     if raw.is_empty() {

@@ -9,23 +9,23 @@ import correlate
 
 
 class ClassifyTests(unittest.TestCase):
-    def test_sqli_a03(self) -> None:
-        self.assertEqual(correlate.classify("crowdsecurity/http-generic-sqli")["code"], "A03")
+    def test_sqli_a05(self) -> None:
+        self.assertEqual(correlate.classify("crowdsecurity/http-generic-sqli")["code"], "A05")
 
-    def test_xss_a03(self) -> None:
-        self.assertEqual(correlate.classify("crs/941110-xss")["code"], "A03")
+    def test_xss_a05(self) -> None:
+        self.assertEqual(correlate.classify("crs/941110-xss")["code"], "A05")
 
-    def test_ssrf_a10(self) -> None:
-        self.assertEqual(correlate.classify("ssrf-probe")["code"], "A10")
-        self.assertEqual(correlate.classify("crs-934100")["code"], "A10")
+    def test_ssrf_a01(self) -> None:
+        self.assertEqual(correlate.classify("ssrf-probe")["code"], "A01")
+        self.assertEqual(correlate.classify("crs-934100")["code"], "A01")
 
     def test_wordpress_uploads_listing_a01(self) -> None:
         hit = correlate.classify("crowdsecurity/generic-wordpress-uploads-listing")
         self.assertEqual(hit["code"], "A01")
 
-    def test_probing_a05(self) -> None:
-        self.assertEqual(correlate.classify("http-probing")["code"], "A05")
-        self.assertEqual(correlate.classify("scanner-detect")["code"], "A05")
+    def test_probing_a02(self) -> None:
+        self.assertEqual(correlate.classify("http-probing")["code"], "A02")
+        self.assertEqual(correlate.classify("scanner-detect")["code"], "A02")
 
     def test_empty_none(self) -> None:
         self.assertEqual(correlate.classify("")["code"], "none")
@@ -43,14 +43,26 @@ class ClassifyTests(unittest.TestCase):
 
     def test_ssrf_not_c2_proxy(self) -> None:
         hit = correlate.classify("crs-934100")
-        self.assertEqual(hit["code"], "A10")
+        self.assertEqual(hit["code"], "A01")
         self.assertEqual(hit["attack"], ["T1190"])
         self.assertNotIn("T1090", hit["attack"])
 
-    def test_cve_9341_is_not_ssrf(self) -> None:
+    def test_cve_9341_is_supply_chain_not_ssrf(self) -> None:
         hit = correlate.classify("crowdsecurity/vpatch-CVE-2024-9341")
-        self.assertEqual(hit["code"], "A06")
-        self.assertNotEqual(hit["code"], "A10")
+        self.assertEqual(hit["code"], "A03")
+        self.assertEqual(hit["confidence"], "medium")
+        self.assertNotEqual(hit["code"], "A01")
+
+    def test_nginx_http2_cves_are_high_and_exact(self) -> None:
+        for name in ("cve-2026-123007", "CVE-2026-123633", "nginx2shell", "nginx2root"):
+            hit = correlate.classify(name)
+            self.assertEqual(hit["code"], "A03", name)
+            self.assertEqual(hit["confidence"], "high", name)
+            self.assertEqual(hit["attack"], ["T1190"], name)
+        other = correlate.classify("cve-2026-123634")
+        self.assertEqual(other["code"], "A03")
+        self.assertEqual(other["confidence"], "medium")
+        self.assertEqual(correlate.classify("nginx-http2")["code"], "none")
 
     def test_http_generic_bf_a07(self) -> None:
         hit = correlate.classify("crowdsecurity/http-generic-bf")
@@ -59,7 +71,7 @@ class ClassifyTests(unittest.TestCase):
 
     def test_ssh_cve_is_not_brute(self) -> None:
         hit = correlate.classify("crowdsecurity/ssh-cve-2024-6387")
-        self.assertEqual(hit["code"], "A06")
+        self.assertEqual(hit["code"], "A03")
         self.assertNotIn("T1110", hit["attack"])
 
     def test_wordpress_login_a07(self) -> None:
@@ -74,7 +86,7 @@ class ClassifyTests(unittest.TestCase):
         hit = correlate.classify("crowdsecurity/vpatch-git-config")
         self.assertEqual(hit["code"], "A01")
         self.assertEqual(hit["attack"], ["T1190"])
-        self.assertNotEqual(hit["code"], "A06")
+        self.assertNotEqual(hit["code"], "A03")
 
     def test_path_traversal_a01(self) -> None:
         hit = correlate.classify("crowdsecurity/http-path-traversal")
@@ -87,7 +99,7 @@ class ClassifyTests(unittest.TestCase):
 
     def test_xmlrpc_scan_is_not_brute(self) -> None:
         hit = correlate.classify("crowdsecurity/http-wordpress-xmlrpc")
-        self.assertEqual(hit["code"], "A05")
+        self.assertEqual(hit["code"], "A02")
         self.assertEqual(hit["attack"], ["T1595"])
 
     def test_xmlrpc_bf_is_brute(self) -> None:
@@ -96,12 +108,12 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(hit["attack"], ["T1110"])
 
     def test_http_crawl_not_bare_crawl(self) -> None:
-        self.assertEqual(correlate.classify("crowdsecurity/http-crawl-non_statics")["code"], "A05")
+        self.assertEqual(correlate.classify("crowdsecurity/http-crawl-non_statics")["code"], "A02")
         self.assertEqual(correlate.classify("screen-crawl-test")["code"], "none")
 
     def test_ssl_generic_not_weaken_encryption(self) -> None:
         self.assertEqual(correlate.classify("http-generic-ssl")["code"], "none")
-        self.assertEqual(correlate.classify("wordpress-ssl-redirect")["code"], "A06")
+        self.assertEqual(correlate.classify("wordpress-ssl-redirect")["code"], "A03")
 
     def test_oob_log_only_not_impair_defenses(self) -> None:
         hit = correlate.classify("appsec-oob-log-only")
@@ -145,8 +157,46 @@ class ClassifyTests(unittest.TestCase):
             "crowdsecurity/http-generic-sqli",
             {"labels": ["mitre:T1190", "T1110"]},
         )
-        self.assertEqual(hit["code"], "A03")
+        self.assertEqual(hit["code"], "A05")
         self.assertEqual(hit["attack"], ["T1190", "T1110"])
+
+    def test_log4j_is_supply_chain_not_injection(self) -> None:
+        hit = correlate.classify("crowdsecurity/log4j-jndi")
+        self.assertEqual(hit["code"], "A03")
+        self.assertEqual(hit["attack"], ["T1190", "T1059"])
+        self.assertEqual(hit["confidence"], "high")
+
+    def test_weak_crypto_a04(self) -> None:
+        hit = correlate.classify("insecure-tls")
+        self.assertEqual(hit["code"], "A04")
+        self.assertEqual(hit["attack"], ["T1600"])
+
+    def test_xxe_a02_deserial_a08(self) -> None:
+        self.assertEqual(correlate.classify("xxe-probe")["code"], "A02")
+        hit = correlate.classify("java-deserial-cve-2015-4852")
+        self.assertEqual(hit["code"], "A08")
+        self.assertNotEqual(hit["code"], "A03")
+
+    def test_fail_open_is_a10_and_does_not_steal_sqli(self) -> None:
+        hit = correlate.classify("fail-open")
+        self.assertEqual(hit["code"], "A10")
+        self.assertEqual(hit["attack"], ["T1595"])
+        self.assertEqual(correlate.classify("stack-trace")["code"], "A10")
+        self.assertEqual(correlate.classify("verbose-error")["code"], "A10")
+        self.assertEqual(correlate.classify("error")["code"], "none")
+        self.assertEqual(correlate.classify("sqli-error")["code"], "A05")
+
+    def test_catalog_is_top10_2025(self) -> None:
+        by_code = {item["code"]: item for item in correlate.OWASP_2025}
+        self.assertEqual(list(by_code), [f"A0{n}" for n in range(1, 10)] + ["A10"])
+        self.assertEqual(by_code["A03"]["name"], "Software Supply Chain Failures")
+        self.assertEqual(by_code["A07"]["name"], "Authentication Failures")
+        self.assertEqual(by_code["A08"]["name"], "Software or Data Integrity Failures")
+        self.assertEqual(by_code["A09"]["name"], "Security Logging and Alerting Failures")
+        self.assertEqual(correlate.OWASP_SOURCE, "https://top10.owasp.org/2025/")
+        for item in correlate.OWASP_2025:
+            self.assertTrue(item["url"].startswith("https://top10.owasp.org/2025/"))
+            self.assertTrue(item["id"].endswith(":2025"))
 
 
 class CorrelateTests(unittest.TestCase):
@@ -174,13 +224,25 @@ class CorrelateTests(unittest.TestCase):
         )
         by_code = {item["code"]: item for item in data["owasp"]}
         self.assertEqual(len(data["owasp"]), 10)
-        self.assertEqual(by_code["A03"]["count"], 2)
-        self.assertEqual(by_code["A10"]["count"], 1)
-        self.assertEqual(by_code["A01"]["count"], 0)
+        advisories = data["advisories"]
+        self.assertEqual(len(advisories), 1)
+        affected = {row["cve"]: row for row in advisories[0]["affected"]}
+        self.assertEqual(affected["CVE-2026-123007"]["vulnerable"], "1.9.5-1.31.8")
+        self.assertEqual(affected["CVE-2026-123633"]["vulnerable"], "1.19.7-1.31.8")
+        self.assertEqual(advisories[0]["fixed_stable"], "1.30.7")
+        self.assertEqual(advisories[0]["fixed_mainline"], "1.31.9")
+        self.assertTrue(advisories[0]["source"].startswith("https://nginx.org/"))
+        self.assertEqual(by_code["A05"]["count"], 2)
+        self.assertEqual(by_code["A01"]["count"], 1)
+        self.assertEqual(by_code["A10"]["count"], 0)
+        self.assertEqual(by_code["A01"]["id"], "A01:2025")
+        self.assertEqual(by_code["A05"]["name"], "Injection")
+        self.assertEqual(by_code["A10"]["name"], "Mishandling of Exceptional Conditions")
+        self.assertTrue(by_code["A03"]["url"].startswith("https://top10.owasp.org/2025/"))
         self.assertTrue(
             any("wordpress-uploads-listing" in rule for rule in by_code["A01"]["hub_rules"])
         )
-        self.assertTrue(any("vpatch" in rule for rule in by_code["A06"]["hub_rules"]))
+        self.assertTrue(any("vpatch" in rule for rule in by_code["A03"]["hub_rules"]))
         self.assertEqual(len(data["findings"]), 3)
         self.assertFalse(data["push"])
         for finding in data["findings"]:
@@ -255,7 +317,7 @@ class CorrelateTests(unittest.TestCase):
         self.assertEqual(a01["confidence"], "high")
         by_code = {item["code"]: item for item in data["owasp"]}
         self.assertEqual(by_code["A01"]["count"], 1)
-        self.assertEqual(by_code["A03"]["count"], 1)
+        self.assertEqual(by_code["A05"]["count"], 1)
         t1190 = next(item for item in data["mitre"]["techniques"] if item["id"] == "T1190")
         t1595 = next(item for item in data["mitre"]["techniques"] if item["id"] == "T1595")
         self.assertEqual(t1190["count"], 2)
@@ -298,6 +360,10 @@ class CorrelateTests(unittest.TestCase):
         types = {obj.get("type") for obj in bundle.get("objects") or []}
         self.assertIn("identity", types)
         self.assertIn("indicator", types)
+        names = [str(obj.get("name") or "") for obj in bundle.get("objects") or []]
+        self.assertTrue(any(name.startswith("A05:2025 Injection") for name in names))
+        self.assertIn("owasp:top10:2025", json.dumps(correlate.misp_event(payload)))
+        self.assertIn("owasp-top10-2025", json.dumps(correlate.thehive_alert(payload)))
 
 
 class ConnectorTests(unittest.TestCase):

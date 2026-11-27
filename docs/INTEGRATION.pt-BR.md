@@ -24,7 +24,7 @@ Quando o Traefik ocupa `:8080`, o LAPI fica tipicamente em `:18080`. Preferir
 
 Políticas (criar/editar/excluir) fazem SIGHUP no engine — precisa `pid: host` e volume AppSec gravável. Não reiniciar Nomad/Traefik para aplicar um filtro.
 
-A aba **OWASP** correlaciona achados CrowdSec com o Top 10:2021 e exporta arquivos STIX/MISP/TheHive (conectores estilo OpenCTI: só enriquecimento local e download). Não há push outbound; tokens nunca saem no JSON. O mapa continua a usar só geo do LAPI.
+A aba **OWASP** correlaciona achados CrowdSec com o [Top 10:2025](https://top10.owasp.org/2025/) e exporta arquivos STIX/MISP/TheHive (conectores estilo OpenCTI: só enriquecimento local e download). Não há push outbound; tokens nunca saem no JSON. O mapa continua a usar só geo do LAPI. SSRF fica em A01, injeção em A05, componentes vulneráveis e Log4j em A03, e falha aberta ou vazamento de erro em A10.
 
 Snapshot GA4 opcional (`WAF_GA_SNAPSHOT_FILE`): exportar à mão sessões por hostname e país. O console **não** chama a Data API, **não** carrega gtag em `/waf` e **não** envia IPs CrowdSec pelo Measurement Protocol.
 

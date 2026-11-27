@@ -394,7 +394,7 @@ def source_of(alert: dict) -> dict:
     if not isinstance(event0, dict):
         event0 = {}
     src = {**event0, **src}
-    ip = src.get("ip") or src.get("value") or ""
+    ip = netguard.canonical_ip(src.get("ip") or src.get("value") or "")
     cn = str(src.get("cn") or src.get("country") or alert.get("cn") or "").upper()
     lat, lon = src.get("latitude"), src.get("longitude")
     try:

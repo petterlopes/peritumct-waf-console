@@ -21,7 +21,7 @@ Interface de operações para instalações **locais** do [CrowdSec](https://git
 
 Proteger aplicações exige mais do que instalar o engine: ver domínio em falha, entender decisões, ajustar excepções e distinguir detecção de bloqueio — sem depender de um dashboard externo para o dia a dia.
 
-O PeritumCT WAF Console mantém esse fluxo **junto ao engine**: alertas/decisões LAPI, políticas AppSec por FQDN, allowlists, sondagens Domains, métricas, mapa com geo da LAPI e correlação local OWASP Top 10:2021 / MITRE ATT&CK.
+O PeritumCT WAF Console mantém esse fluxo **junto ao engine**: alertas/decisões LAPI, políticas AppSec por FQDN, allowlists, sondagens Domains, métricas, mapa com geo da LAPI e correlação local OWASP Top 10:2025 / MITRE ATT&CK.
 
 ## Capturas
 

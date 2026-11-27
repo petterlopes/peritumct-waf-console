@@ -18,7 +18,7 @@ para a PERITUM / Perícia Computacional. Não é o dashboard cloud da CrowdSec.
   https://github.com/crowdsecurity/crowdsec — pin de integração **v1.8.1**. Ver `NOTICE`.
 - Polígonos terrestres: Natural Earth 110m (domínio público). Projeção: Robinson.
   Coordenadas só da LAPI CrowdSec (sem GeoIP de terceiros).
-- OWASP Top 10:2021 e MITRE ATT&CK são **catálogos locais** (sem download direto).
+- OWASP Top 10:2025 e MITRE ATT&CK são **catálogos locais** (sem download direto).
 
 ## Editorial
 

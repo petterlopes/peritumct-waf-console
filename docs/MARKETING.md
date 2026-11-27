@@ -18,7 +18,7 @@ In **Settings → General**:
 
 **PeritumCT WAF Console** is an open source self-hosted console for local CrowdSec installs, with a Rust backend and a static UI served by the app.
 
-It gathers alerts, decisions, per-FQDN AppSec policies, allowlists, metrics, HTTP probes, and a LAPI-based map. Heuristic OWASP Top 10:2021 and MITRE ATT&CK correlation plus local CTI file exports support investigation — without depending on CrowdSec Console SaaS for core ops.
+It gathers alerts, decisions, per-FQDN AppSec policies, allowlists, metrics, HTTP probes, and a LAPI-based map. Heuristic OWASP Top 10:2025 and MITRE ATT&CK correlation plus local CTI file exports support investigation — without depending on CrowdSec Console SaaS for core ops.
 
 Designed for loopback and org-managed admin access. Control actions need local credentials and permissions. The console does not replace CrowdSec detection or remediation components.
 
@@ -33,7 +33,7 @@ Self-hosted UI for day-to-day AppSec work:
 - Local alerts and decisions (ban / unban)
 - Per-domain AppSec policies and allowlists
 - Map, metrics, and HTTPS service checks
-- Heuristic OWASP Top 10:2021 and MITRE ATT&CK correlation
+- Heuristic OWASP Top 10:2025 and MITRE ATT&CK correlation
 - Local CTI file exports for investigation workflows
 
 The 2.x line is **Rust**. Core functions do not require CrowdSec Console SaaS. Protect operator access with your admin network/IdP; policy apply needs engine permissions (`pid: host`, writable AppSec, `cscli`).
@@ -48,7 +48,7 @@ Article: https://periciacomputacional.com/peritumct-waf-console-local-control-of
 
 Estou compartilhando o **PeritumCT WAF Console**, projeto open source para facilitar a operação local do CrowdSec.
 
-Interface self-hosted para a rotina de quem protege aplicações: alertas e decisões, políticas AppSec por domínio, allowlists, mapa, métricas, sondagens HTTP, correlação OWASP Top 10:2021 / MITRE ATT&CK e exportações CTI locais.
+Interface self-hosted para a rotina de quem protege aplicações: alertas e decisões, políticas AppSec por domínio, allowlists, mapa, métricas, sondagens HTTP, correlação OWASP Top 10:2025 / MITRE ATT&CK e exportações CTI locais.
 
 Backend **Rust** (2.x). Funções principais sem depender do CrowdSec Console SaaS. Acesso administrativo via infraestrutura da organização; aplicar políticas exige permissões no engine.
 

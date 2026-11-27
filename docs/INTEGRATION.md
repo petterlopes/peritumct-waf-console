@@ -229,7 +229,7 @@ See [SECURITY.md](SECURITY.md). GitHub Actions workflow: `.github/workflows/secu
 ## 13. OWASP correlation and CTI file export
 
 The **OWASP** tab maps CrowdSec LAPI/AppSec alerts (and Hub AppSec rule names) to
-[OWASP Top 10:2021](https://owasp.org/Top10/2021/). CRS IDs must be six digits
+[OWASP Top 10:2025](https://top10.owasp.org/2025/). CRS IDs must be six digits
 (`934100`, not `CVE-2024-9341`). Engine chatter (body inspection, CAPI IP
 updates, OOB scores without a technique) is dropped. MITRE ATT&CK enrichment
 uses a **local** subset (T1190, T1595, T1110, T1059, T1083, T1046 Discovery,
@@ -237,7 +237,14 @@ T1189, T1505, T1090, T1562, T1600, T1068, T1505.003) — no GitHub download.
 Internet scanners map to T1595 only; SQLi/XSS/SSRF map to T1190.
 AppSec **out-of-band** anomaly scores (log-only CRS matches) also map to T1595,
 not T1190, unless the Hub alert already carries a catalog MITRE id. Exposed
-`.git/config` (`vpatch-git-config`) is A01, not A06. Dashboard counts are
+`.git/config` (`vpatch-git-config`) is A01 Broken Access Control, not A03
+Software Supply Chain Failures. SSRF, including CRS 934, is A01. Injection
+(SQLi, XSS, RCE, RFI, CRS 931/932/933/941/942/944) is A05. Known-vulnerable
+components, virtual patches, and Log4j/JNDI are A03. Scanners, XML-RPC, and
+XXE are A02. Weak crypto is A04. Deserialization is A08. Fail-open and error
+disclosure are A10. The Rules view lists a local nginx HTTP/2 virtual patch
+(CVE-2026-123007, 1.9.5–1.31.8; CVE-2026-123633, 1.19.7–1.31.8; fixed in 1.30.7
+and 1.31.9). It is an operator catalog, not an in-band signature. Dashboard counts are
 **unique source IPs** after collapsing to one row per IP + OWASP (in-band Hub
 names win over CrowdSec OOB “lfi” labels on `/.env` probes; the row keeps an
 `events` tally and merged ATT&CK ids). The Security dashboard scanner graph is

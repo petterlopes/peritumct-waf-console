@@ -6,7 +6,7 @@
 
 ## Executive summary
 
-The console brings security data and actions closer to the operator: reviewing alerts, managing blocking decisions, creating per-domain AppSec exceptions, checking services, and interpreting events with a **local** MITRE ATT&CK catalog and OWASP Top 10:2021 mappings.
+The console brings security data and actions closer to the operator: reviewing alerts, managing blocking decisions, creating per-domain AppSec exceptions, checking services, and interpreting events with a **local** MITRE ATT&CK catalog and OWASP Top 10:2025 mappings.
 
 Distributed under **GPL-3.0-or-later**, it is designed for restricted administrative access: loopback listener, local LAPI, and remote access through the organization’s network and identity controls. Core functions do **not** depend on the CrowdSec Console SaaS. CrowdSec remains responsible for detection and, with remediation components, traffic protection.
 

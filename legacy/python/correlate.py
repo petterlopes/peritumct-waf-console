@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""OWASP Top 10:2021 correlation + OpenCTI-inspired local CTI export.
+"""OWASP Top 10:2025 correlation + OpenCTI-inspired local CTI export.
 
-CrowdSec LAPI/AppSec findings are classified against OWASP Top 10:2021 and a
+CrowdSec LAPI/AppSec findings are classified against OWASP Top 10:2025 and a
 local MITRE ATT&CK catalog. Connectors follow OpenCTI class names
 (INTERNAL_ENRICHMENT, EXTERNAL_IMPORT, STREAM, INTERNAL_EXPORT_FILE) but only
 perform local enrichment and file export. Findings are never pushed outbound.
@@ -17,68 +17,70 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-OWASP_SOURCE = "https://owasp.org/Top10/2021/"
+import netguard
 
-OWASP_2021: list[dict[str, str]] = [
+OWASP_SOURCE = "https://top10.owasp.org/2025/"
+
+OWASP_2025: list[dict[str, str]] = [
     {
         "code": "A01",
-        "id": "A01:2021",
+        "id": "A01:2025",
         "name": "Broken Access Control",
-        "url": "https://owasp.org/Top10/2021/A01_2021-Broken_Access_Control.html",
+        "url": "https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/",
     },
     {
         "code": "A02",
-        "id": "A02:2021",
-        "name": "Cryptographic Failures",
-        "url": "https://owasp.org/Top10/2021/A02_2021-Cryptographic_Failures.html",
+        "id": "A02:2025",
+        "name": "Security Misconfiguration",
+        "url": "https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/",
     },
     {
         "code": "A03",
-        "id": "A03:2021",
-        "name": "Injection",
-        "url": "https://owasp.org/Top10/2021/A03_2021-Injection.html",
+        "id": "A03:2025",
+        "name": "Software Supply Chain Failures",
+        "url": "https://top10.owasp.org/2025/A03_2025-Software_Supply_Chain_Failures/",
     },
     {
         "code": "A04",
-        "id": "A04:2021",
-        "name": "Insecure Design",
-        "url": "https://owasp.org/Top10/2021/A04_2021-Insecure_Design.html",
+        "id": "A04:2025",
+        "name": "Cryptographic Failures",
+        "url": "https://top10.owasp.org/2025/A04_2025-Cryptographic_Failures/",
     },
     {
         "code": "A05",
-        "id": "A05:2021",
-        "name": "Security Misconfiguration",
-        "url": "https://owasp.org/Top10/2021/A05_2021-Security_Misconfiguration.html",
+        "id": "A05:2025",
+        "name": "Injection",
+        "url": "https://top10.owasp.org/2025/A05_2025-Injection/",
     },
     {
         "code": "A06",
-        "id": "A06:2021",
-        "name": "Vulnerable and Outdated Components",
-        "url": "https://owasp.org/Top10/2021/A06_2021-Vulnerable_and_Outdated_Components.html",
+        "id": "A06:2025",
+        "name": "Insecure Design",
+        "url": "https://top10.owasp.org/2025/A06_2025-Insecure_Design/",
     },
     {
         "code": "A07",
-        "id": "A07:2021",
-        "name": "Identification and Authentication Failures",
-        "url": "https://owasp.org/Top10/2021/A07_2021-Identification_and_Authentication_Failures.html",
+        "id": "A07:2025",
+        "name": "Authentication Failures",
+        "url": "https://top10.owasp.org/2025/A07_2025-Authentication_Failures/",
     },
     {
         "code": "A08",
-        "id": "A08:2021",
-        "name": "Software and Data Integrity Failures",
-        "url": "https://owasp.org/Top10/2021/A08_2021-Software_and_Data_Integrity_Failures.html",
+        "id": "A08:2025",
+        "name": "Software or Data Integrity Failures",
+        "url": "https://top10.owasp.org/2025/A08_2025-Software_or_Data_Integrity_Failures/",
     },
     {
         "code": "A09",
-        "id": "A09:2021",
-        "name": "Security Logging and Monitoring Failures",
-        "url": "https://owasp.org/Top10/2021/A09_2021-Security_Logging_and_Monitoring_Failures.html",
+        "id": "A09:2025",
+        "name": "Security Logging and Alerting Failures",
+        "url": "https://top10.owasp.org/2025/A09_2025-Security_Logging_and_Alerting_Failures/",
     },
     {
         "code": "A10",
-        "id": "A10:2021",
-        "name": "Server-Side Request Forgery (SSRF)",
-        "url": "https://owasp.org/Top10/2021/A10_2021-Server-Side_Request_Forgery_%28SSRF%29.html",
+        "id": "A10:2025",
+        "name": "Mishandling of Exceptional Conditions",
+        "url": "https://top10.owasp.org/2025/A10_2025-Mishandling_of_Exceptional_Conditions/",
     },
 ]
 
@@ -197,40 +199,49 @@ _CRS_ID_RE = re.compile(
     r"\b(?P<gid>913|920|921|930|931|932|933|934|941|942|943|944)\d{3}\b"
 )
 _CRS_CLASS: dict[str, tuple[str, list[str], str]] = {
-    "913": ("A05", ["T1595"], "medium"),
-    "920": ("A05", ["T1595"], "medium"),
-    "921": ("A05", ["T1595"], "medium"),
+    "913": ("A02", ["T1595"], "medium"),
+    "920": ("A02", ["T1595"], "medium"),
+    "921": ("A02", ["T1595"], "medium"),
     "930": ("A01", ["T1190"], "high"),
-    "931": ("A03", ["T1190"], "high"),
-    "932": ("A03", ["T1190", "T1059", "T1068"], "high"),
-    "933": ("A03", ["T1190", "T1059"], "high"),
-    "934": ("A10", ["T1190"], "high"),
-    "941": ("A03", ["T1190"], "high"),
-    "942": ("A03", ["T1190"], "high"),
+    "931": ("A05", ["T1190"], "high"),
+    "932": ("A05", ["T1190", "T1059", "T1068"], "high"),
+    "933": ("A05", ["T1190", "T1059"], "high"),
+    "934": ("A01", ["T1190"], "high"),
+    "941": ("A05", ["T1190"], "high"),
+    "942": ("A05", ["T1190"], "high"),
     "943": ("A07", ["T1110"], "medium"),
-    "944": ("A03", ["T1190"], "high"),
+    "944": ("A05", ["T1190"], "high"),
 }
 
 # Specific Hub / AppSec names first. No bare CRS digits, ssh, ssl, oob, or upload.
+# 2025 codes: SSRF is A01; Log4j is A03 supply chain; injection is A05;
+# XXE and scanners are A02; weak crypto is A04; deserialization is A08;
+# fail-open and error disclosure are A10.
 _CLASSIFY_RULES: list[tuple[re.Pattern[str], str, list[str], str]] = [
-    (re.compile(r"ssrf", re.I), "A10", ["T1190"], "high"),
-    (re.compile(r"sqli|sql.?inject", re.I), "A03", ["T1190"], "high"),
-    (re.compile(r"xss|cross.?site.?script", re.I), "A03", ["T1190"], "high"),
-    (re.compile(r"rce|remote.?code|command.?inject|php.?inject|log4j|jndi", re.I), "A03", ["T1190", "T1059", "T1068"], "high"),
+    (re.compile(r"ssrf", re.I), "A01", ["T1190"], "high"),
+    (re.compile(r"log4j|jndi", re.I), "A03", ["T1190", "T1059"], "high"),
+    (re.compile(r"sqli|sql.?inject", re.I), "A05", ["T1190"], "high"),
+    (re.compile(r"xss|cross.?site.?script", re.I), "A05", ["T1190"], "high"),
+    (re.compile(r"rce|remote.?code|command.?inject|php.?inject", re.I), "A05", ["T1190", "T1059", "T1068"], "high"),
     (re.compile(r"lfi|path.?traversal|directory.?traversal|local.?file.?inclusion", re.I), "A01", ["T1190"], "high"),
-    (re.compile(r"rfi|remote.?file.?inclusion", re.I), "A03", ["T1190"], "high"),
+    (re.compile(r"rfi|remote.?file.?inclusion", re.I), "A05", ["T1190"], "high"),
     (re.compile(r"webshell|backdoor", re.I), "A01", ["T1505", "T1505.003"], "high"),
     (re.compile(r"wordpress-uploads-listing", re.I), "A01", ["T1190"], "high"),
     (re.compile(r"env-access|sensitive.?files|admin.?interface|git-config", re.I), "A01", ["T1190"], "high"),
     (re.compile(r"wordpress.?login", re.I), "A07", ["T1110"], "high"),
     (re.compile(r"brute(?:[-_ ]?force)?|\bbf\b|[-_/]bf(?:[-_/]|$)|ssh-slow-bf|ssh-bf", re.I), "A07", ["T1110"], "high"),
-    (re.compile(r"xmlrpc", re.I), "A05", ["T1595"], "medium"),
-    (re.compile(r"waf.?bypass|disable.?security|impair.?defense", re.I), "A05", ["T1562"], "medium"),
-    (re.compile(r"weak.?crypto|insecure.?tls", re.I), "A02", ["T1600"], "medium"),
-    (re.compile(r"vpatch|cve-\d{4}", re.I), "A06", ["T1190"], "medium"),
-    (re.compile(r"wordpress.?scan|http-wordpress", re.I), "A05", ["T1595"], "medium"),
-    (re.compile(r"wordpress", re.I), "A06", ["T1190"], "medium"),
-    (re.compile(r"probing|scanner|http-crawl|bad-user-agent|open-proxy|http-scan", re.I), "A05", ["T1595"], "medium"),
+    (re.compile(r"xxe|xml.?external.?entity", re.I), "A02", ["T1190"], "high"),
+    (re.compile(r"xmlrpc", re.I), "A02", ["T1595"], "medium"),
+    (re.compile(r"waf.?bypass|disable.?security|impair.?defense", re.I), "A02", ["T1562"], "medium"),
+    (re.compile(r"weak.?crypto|insecure.?tls", re.I), "A04", ["T1600"], "medium"),
+    (re.compile(r"deserial", re.I), "A08", ["T1190"], "high"),
+    # Vendor-confirmed nginx HTTP/2 RCEs. Exact ids only; bare "nginx" stays unclassified.
+    (re.compile(r"nginx2shell|nginx2root|cve-2026-123007|cve-2026-123633", re.I), "A03", ["T1190"], "high"),
+    (re.compile(r"vpatch|cve-\d{4}", re.I), "A03", ["T1190"], "medium"),
+    (re.compile(r"wordpress.?scan|http-wordpress", re.I), "A02", ["T1595"], "medium"),
+    (re.compile(r"wordpress", re.I), "A03", ["T1190"], "medium"),
+    (re.compile(r"fail-?open|failing.?open|stack.?trace|verbose.?error|error.?disclosure|uncaught.?exception", re.I), "A10", ["T1595"], "medium"),
+    (re.compile(r"probing|scanner|http-crawl|bad-user-agent|open-proxy|http-scan", re.I), "A02", ["T1595"], "medium"),
 ]
 _MITRE_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.I)
 _OOB_RE = re.compile(r"out-of-band|outofband|\boob\b|log-only", re.I)
@@ -244,7 +255,36 @@ _NONE: dict[str, Any] = {
     "confidence": "none",
 }
 
-_OWASP_BY_CODE = {item["code"]: item for item in OWASP_2021}
+_OWASP_BY_CODE = {item["code"]: item for item in OWASP_2025}
+
+# Local operator catalog. Not an in-band signature and not an HTTP/2 payload.
+# Ranges are the nginx.org advisory lines for these two ids only.
+VIRTUAL_PATCHES: list[dict[str, Any]] = [
+    {
+        "id": "nginx-http2-2026",
+        "owasp": "A03",
+        "owasp_id": "A03:2025",
+        "attack": ["T1190"],
+        "confidence": "high",
+        "fixed_stable": "1.30.7",
+        "fixed_mainline": "1.31.9",
+        "source": "https://nginx.org/en/security_advisories.html",
+        "affected": [
+            {
+                "cve": "CVE-2026-123007",
+                "summary": "Memory corruption in HTTP/2 flow control",
+                "vulnerable": "1.9.5-1.31.8",
+                "fixed": "1.30.7+, 1.31.9+",
+            },
+            {
+                "cve": "CVE-2026-123633",
+                "summary": "Use-after-free in HTTP/2",
+                "vulnerable": "1.19.7-1.31.8",
+                "fixed": "1.30.7+, 1.31.9+",
+            },
+        ],
+    }
+]
 
 _SECRET_KEY_RE = re.compile(r"(token|key|password|secret|authorization|credential)", re.I)
 
@@ -385,7 +425,7 @@ def _mitre_from_alert(alert: dict | None) -> list[str]:
 
 
 def classify(name: str | None, alert: dict | None = None) -> dict[str, Any]:
-    """Map a CrowdSec scenario / AppSec / CRS name to OWASP Top 10:2021.
+    """Map a CrowdSec scenario / AppSec / CRS name to OWASP Top 10:2025.
 
     Engine chatter returns none. CRS IDs must be six digits. Hub MITRE labels
     in the alert override regex ATT&CK IDs when they are in the local catalog.
@@ -425,11 +465,11 @@ def _alert_ip(alert: dict) -> str:
     src = alert.get("source") if isinstance(alert.get("source"), dict) else {}
     ip = src.get("ip") or src.get("value") or ""
     if ip:
-        return str(ip)
+        return netguard.canonical_ip(str(ip))
     events = alert.get("events") or []
     if events and isinstance(events[0], dict):
         ev_src = events[0].get("source") if isinstance(events[0].get("source"), dict) else {}
-        return str(ev_src.get("ip") or ev_src.get("value") or "")
+        return netguard.canonical_ip(str(ev_src.get("ip") or ev_src.get("value") or ""))
     return ""
 
 
@@ -504,7 +544,7 @@ def connectors() -> list[dict[str, Any]]:
         ),
         _connector(
             "INTERNAL_ENRICHMENT",
-            "OWASP Top 10:2021",
+            "OWASP Top 10:2025",
             "local-catalog",
             "configured",
             "CrowdSec scenario/AppSec/CRS IDs mapped to A01–A10. " + OWASP_SOURCE,
@@ -562,9 +602,9 @@ def _scrub(value: Any) -> Any:
 
 
 def correlate(alerts, hub_rules=None) -> dict[str, Any]:
-    """Correlate CrowdSec alerts with OWASP Top 10:2021 and local ATT&CK."""
+    """Correlate CrowdSec alerts with OWASP Top 10:2025 and local ATT&CK."""
     catalog: dict[str, dict[str, Any]] = {}
-    for item in OWASP_2021:
+    for item in OWASP_2025:
         catalog[item["code"]] = {
             "code": item["code"],
             "id": item["id"],
@@ -619,6 +659,7 @@ def correlate(alerts, hub_rules=None) -> dict[str, Any]:
         "attack": attack_list,
         "mitre": _mitre_block(findings, attack_counts),
         "connectors": connectors(),
+        "advisories": VIRTUAL_PATCHES,
     }
     return _scrub(payload)
 
@@ -657,6 +698,19 @@ def _mitre_block(findings: list[dict[str, Any]], attack_counts: dict[str, int]) 
         "findings": findings,
         "uncovered": uncovered,
     }
+
+
+def _stix_literal(value: str) -> str:
+    return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _stix_indicator_pattern(ip: str, scenario: str) -> str:
+    ip = str(ip or "").strip()
+    if ip:
+        kind = "ipv6-addr" if ":" in ip else "ipv4-addr"
+        return f"[{kind}:value = '{_stix_literal(ip)}']"
+    scenario = scenario or "unknown"
+    return f"[x-waf-scenario:value = '{_stix_literal(scenario)}']"
 
 
 def _stix_id(kind: str, seed: str) -> str:
@@ -702,12 +756,12 @@ def stix_bundle(payload) -> dict[str, Any]:
                 "id": ap_id,
                 "created": now,
                 "modified": now,
-                "name": f"{code}:2021 {cat.get('name') or ''}".strip(),
+                "name": f"{cat.get('id') or code} {cat.get('name') or ''}".strip(),
                 "description": cat.get("url") or OWASP_SOURCE,
                 "external_references": [
                     {
                         "source_name": "owasp",
-                        "external_id": cat.get("id") or f"{code}:2021",
+                        "external_id": cat.get("id") or code,
                         "url": cat.get("url") or OWASP_SOURCE,
                     }
                 ],
@@ -740,7 +794,7 @@ def stix_bundle(payload) -> dict[str, Any]:
         scenario = str(finding.get("scenario") or "")
         seed = "|".join([str(finding.get("when") or ""), ip, scenario])
         indicator_id = _stix_id("indicator", seed or scenario or "finding")
-        pattern = f"[ipv4-addr:value = '{ip}']" if ip else f"[x-waf-scenario:value = '{scenario or 'unknown'}']"
+        pattern = _stix_indicator_pattern(ip, scenario)
         objects.append(
             {
                 "type": "indicator",
@@ -788,7 +842,7 @@ def misp_event(payload) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     attributes: list[dict[str, Any]] = []
-    tags = [{"name": "owasp:top10:2021"}, {"name": "tlp:amber"}]
+    tags = [{"name": "owasp:top10:2025"}, {"name": "tlp:amber"}]
     for finding in payload.get("findings") or []:
         ip = str(finding.get("ip") or "").strip()
         scenario = str(finding.get("scenario") or "")
@@ -826,7 +880,7 @@ def misp_event(payload) -> dict[str, Any]:
             )
     event = {
         "Event": {
-            "info": "WAF console CrowdSec findings (OWASP Top 10:2021)",
+            "info": "WAF console CrowdSec findings (OWASP Top 10:2025)",
             "date": now,
             "threat_level_id": "2",
             "analysis": "1",
@@ -846,7 +900,7 @@ def thehive_alert(payload) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
     findings = payload.get("findings") or []
     artifacts = []
-    tags = ["waf-console", "crowdsec", "owasp-top10-2021"]
+    tags = ["waf-console", "crowdsec", "owasp-top10-2025"]
     for finding in findings:
         ip = str(finding.get("ip") or "").strip()
         scenario = str(finding.get("scenario") or "")
@@ -871,7 +925,7 @@ def thehive_alert(payload) -> dict[str, Any]:
         "source": "crowdsec-lapi",
         "sourceRef": "waf-findings-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         "title": "WAF console CrowdSec findings",
-        "description": "Local export of CrowdSec LAPI/AppSec findings correlated with OWASP Top 10:2021. push=False.",
+        "description": "Local export of CrowdSec LAPI/AppSec findings correlated with OWASP Top 10:2025. push=False.",
         "severity": 2,
         "status": "New",
         "follow": False,

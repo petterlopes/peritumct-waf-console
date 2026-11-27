@@ -181,7 +181,9 @@ class ScannerDetectTests(unittest.TestCase):
         self.assertEqual(pack["last_hour"]["sources"], 2)
         self.assertEqual(pack["stats"]["mean_events"], round(3 / 24, 2))
         self.assertEqual(pack["hours"][pack["stats"]["peak_idx"]]["label"], pack["stats"]["peak_label"])
-        self.assertTrue(str(pack["stats"]["peak_label"]).endswith(":00"))
+        # now is 19:00 GMT-3; the two recent events sit in the bucket that starts at 18:00.
+        self.assertEqual(pack["stats"]["peak_label"], "18:00")
+        self.assertEqual(pack["stats"]["last_hour_events"], 2)
         self.assertEqual(len(pack["blocked_hourly"]), 24)
         self.assertEqual(len(pack["logged_hourly"]), 24)
         self.assertEqual(sum(pack["events"]), 3)

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add the documented workstation helper `scripts/waf-admin.ps1 tunnel` (`tsh ssh -N -L 18990:127.0.0.1:18990 root@localhost`). The public `/waf` path stays on the admin overlay.
+- Local virtual patch for nginx HTTP/2 CVE-2026-123007 (1.9.5–1.31.8) and CVE-2026-123633 (1.19.7–1.31.8). Fixed releases are 1.30.7 and 1.31.9. The Rules view shows the vendor ranges; scenario names that contain those CVE ids classify as A03:2025 at high confidence. Bare `nginx` stays unclassified.
+- OWASP correlation uses [Top 10:2025](https://top10.owasp.org/2025/). SSRF joins A01 Broken Access Control, injection is A05, known-vulnerable components and Log4j are A03 Software Supply Chain Failures, weak crypto is A04, scanners and XXE are A02, and fail-open or error disclosure is A10 Mishandling of Exceptional Conditions. STIX, MISP, and TheHive tags follow the 2025 catalog.
+
 ## 2.0.10 — 2026-09-23
 
 - Hotfix: fix Rust E0502 borrow in `/api/alerts` origin enrichment so Docker/Podman release builds succeed.

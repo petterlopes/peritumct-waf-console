@@ -12,6 +12,14 @@ fn classify_code(name: &str) -> String {
         .to_string()
 }
 
+fn classify_confidence(name: &str) -> String {
+    correlate::classify(Some(name), None)
+        .get("confidence")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
 fn classify_attack(name: &str) -> Vec<String> {
     correlate::classify(Some(name), None)
         .get("attack")
@@ -26,9 +34,32 @@ fn classify_attack(name: &str) -> Vec<String> {
 
 #[test]
 fn correlate_classify_sqli_xss_ssrf() {
-    assert_eq!(classify_code("crowdsecurity/http-generic-sqli"), "A03");
-    assert_eq!(classify_code("crs/941110-xss"), "A03");
-    assert_eq!(classify_code("ssrf-probe"), "A10");
+    assert_eq!(classify_code("crowdsecurity/http-generic-sqli"), "A05");
+    assert_eq!(classify_code("crs/941110-xss"), "A05");
+    assert_eq!(classify_code("ssrf-probe"), "A01");
+    assert_eq!(classify_code("crs-934100"), "A01");
+    assert_eq!(classify_code("crowdsecurity/vpatch-CVE-2024-9341"), "A03");
+    assert_ne!(classify_code("crowdsecurity/vpatch-CVE-2024-9341"), "A01");
+    assert_eq!(classify_code("cve-2026-123007"), "A03");
+    assert_eq!(classify_confidence("cve-2026-123007"), "high");
+    assert_eq!(classify_code("CVE-2026-123633"), "A03");
+    assert_eq!(classify_confidence("CVE-2026-123633"), "high");
+    assert_eq!(classify_code("nginx-http2"), "none");
+    assert_eq!(classify_code("cve-2026-123634"), "A03");
+    assert_eq!(classify_confidence("cve-2026-123634"), "medium");
+    assert_eq!(classify_confidence("crowdsecurity/vpatch-CVE-2024-9341"), "medium");
+    let patches = correlate::virtual_patches();
+    let affected = patches[0]["affected"].as_array().expect("affected");
+    assert_eq!(affected[0]["cve"], "CVE-2026-123007");
+    assert_eq!(affected[0]["vulnerable"], "1.9.5-1.31.8");
+    assert_eq!(affected[1]["cve"], "CVE-2026-123633");
+    assert_eq!(affected[1]["vulnerable"], "1.19.7-1.31.8");
+    assert_eq!(patches[0]["fixed_stable"], "1.30.7");
+    assert_eq!(patches[0]["fixed_mainline"], "1.31.9");
+    assert_eq!(classify_code("crowdsecurity/log4j-jndi"), "A03");
+    assert_eq!(classify_code("insecure-tls"), "A04");
+    assert_eq!(classify_code("fail-open"), "A10");
+    assert_eq!(classify_code("error"), "none");
     assert_eq!(
         classify_attack("crowdsecurity/http-generic-sqli"),
         vec!["T1190"]
@@ -38,7 +69,7 @@ fn correlate_classify_sqli_xss_ssrf() {
 
 #[test]
 fn correlate_classify_probing_and_empty() {
-    assert_eq!(classify_code("http-probing"), "A05");
+    assert_eq!(classify_code("http-probing"), "A02");
     assert_eq!(classify_code(""), "none");
 }
 

@@ -172,7 +172,7 @@
             <h2 data-i18n="dash.scanners">Scanner detections</h2>
             <span class="tag" id="dashScannerPoll">15s</span>
           </div>
-          <p class="hint" id="dashScannerHint" data-i18n="dash.scanners_hint">HTTP AppSec scanner detections in this window. Hover or click an hour for time, quantity and action split. The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. L3/L4 scans are invisible here. Updates every 15s.</p>
+          <p class="hint" id="dashScannerHint" data-i18n="dash.scanners_hint">HTTP AppSec scanner detections in this window. Hover or click an hour for time, quantity and action split. Each label is the GMT-3 start of a 60-minute bucket. The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. L3/L4 scans are invisible here. Updates every 15s.</p>
           <div class="scanner-stage">
             <div class="kpi-row scanner-kpis" id="dashScannerKpis"></div>
             <div class="scanner-chart-wrap" id="dashScannerWrap">
@@ -634,10 +634,10 @@
     <section id="view-owasp" class="view hidden">
       <article class="card glow-cyan">
         <div class="card-head">
-          <h2 data-i18n="owasp.title">OWASP Top 10:2021</h2>
+          <h2 data-i18n="owasp.title">OWASP Top 10:2025</h2>
           <span class="tag active">A01–A10</span>
         </div>
-        <p class="hint" data-i18n="owasp.hint">CrowdSec LAPI/AppSec findings mapped to OWASP Top 10:2021. Local enrichment only. File export to MISP, TheHive, OpenCTI STIX — no outbound push.</p>
+        <p class="hint" data-i18n="owasp.hint">CrowdSec LAPI/AppSec findings mapped to OWASP Top 10:2025. Local enrichment only. File export to MISP, TheHive, OpenCTI STIX — no outbound push.</p>
         <div class="owasp-grid" id="owaspTiles"></div>
       </article>
       <div id="gaPrecision"></div>
@@ -731,6 +731,14 @@
     </section>
 
     <section id="view-rules" class="view hidden">
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="rules.vpatch">Local virtual patches</h2>
+          <span class="tag">A03:2025</span>
+        </div>
+        <p class="hint" data-i18n="rules.vpatch_hint">Operator catalog only. The console does not install an in-band HTTP/2 signature and does not change nginx. Alerts whose scenario name contains these CVE ids are A03:2025 at high confidence.</p>
+        <div id="virtualPatches" class="stack-list"></div>
+      </article>
       <div class="grid-2">
         <article class="card">
           <div class="card-head"><h2 data-i18n="rules.profiles">Profiles</h2><span class="tag">read-only</span></div>
@@ -898,7 +906,7 @@
             <li data-i18n="engine.p7">Map uses LAPI geo only · Hub rules are read-only</li>
             <li data-i18n="engine.p8">Mutations that change fail-closed/CRS in-band: none (forbidden in the UI)</li>
             <li data-i18n="engine.p9">Operator control: per-site policies, CIDR allowlist, IP ban/unban</li>
-            <li data-i18n="engine.p10">OWASP Top 10:2021 correlation is local; CTI connectors export files only (no outbound push)</li>
+            <li data-i18n="engine.p10">OWASP Top 10:2025 correlation is local; CTI connectors export files only (no outbound push)</li>
             <li data-i18n="engine.p11">Bouncer inventory is read-only (cscli). No docker.sock, container shell, or Traefik dynamic writes.</li>
             <li data-i18n="engine.p12">Machine inventory is read-only (cscli). No validate/delete or SaaS enroll from this console.</li>
           </ul>
@@ -947,7 +955,7 @@
         <p data-i18n="credits.console">PeritumCT WAF Console — GNU GPL-3.0-or-later, Copyright (c) 2026 PeritumCT.</p>
         <p data-i18n="credits.crowdsec">CrowdSec engine (LAPI + AppSec) — MIT License. Upstream: github.com/crowdsecurity/crowdsec. Integration pin: v1.8.1.</p>
         <p data-i18n="credits.maps">World land polygons: Natural Earth 110m, public domain. Map projection: Robinson. Coordinates come only from CrowdSec LAPI (no third-party GeoIP).</p>
-        <p data-i18n="credits.catalogs">OWASP Top 10:2021 and MITRE ATT&amp;CK labels are local catalogs for operator correlation. They are not a live download from those projects.</p>
+        <p data-i18n="credits.catalogs">OWASP Top 10:2025 and MITRE ATT&amp;CK labels are local catalogs for operator correlation. They are not a live download from those projects.</p>
         <p data-i18n="credits.contact">Questions about authorship or licensing: use the About page above. This /waf UI never loads advertising or gtag.</p>
       </article>
     </section>

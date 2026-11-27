@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import netguard
 import status as statusmod
 
 SOURCE = "crowdsec-lapi"
@@ -219,10 +220,10 @@ def _match_filters(row: dict, filters: dict[str, str]) -> bool:
 
 
 def _top(counter: Counter, n: int = 10) -> list[dict]:
+    population = sum(int(v) for k, v in counter.items() if k) or 1
     items = [{"label": k, "count": int(v)} for k, v in counter.most_common(n) if k]
-    total = sum(item["count"] for item in items) or 1
     for item in items:
-        item["pct"] = round(100.0 * item["count"] / total, 2)
+        item["pct"] = round(100.0 * item["count"] / population, 2)
     return items
 
 
@@ -298,9 +299,13 @@ _SCANNER_SCENARIO_RE = re.compile(
 _SECRET_SCAN_PATH = re.compile(
     r"(?i)(?:^|/)(?:\.env|\.git(?:/|$)|\.aws(?:/|$)|\.docker(?:/|$))"
 )
+_SECRET_INSIGHT_PATH = re.compile(
+    r"(?i)(?:^|/)(?:\.env(?:\.[^/]+)?|\.aws)(?:/|$)"
+)
 _SCANNER_NOTE = (
     "HTTP AppSec/LAPI scanner detections in this window. "
     "Hover or click an hour for time, quantity and action split. "
+    "Each label is the GMT-3 start of a 60-minute bucket ending at the next label. "
     "The graph does not name the tool. Chrome/Firefox on ordinary paths are not counted. "
     "L3/L4 scans (SYN/hping) are invisible here. Updates every 15s."
 )
@@ -343,8 +348,8 @@ def _hour_series(rows: list[dict], now: datetime) -> dict:
             logged[idx] += 1
     labels = []
     for i in range(24):
-        hour = (local.hour - (23 - i)) % 24
-        labels.append(f"{hour:02d}:00")
+        start = local - timedelta(hours=24 - i)
+        labels.append(f"{start.hour:02d}:{start.minute:02d}")
     return {"labels": labels, "events": events, "blocked": blocked, "logged": logged, "tz": "GMT-3"}
 
 
@@ -480,7 +485,7 @@ def _action_items(engine: dict, rows: list[dict], origin: list[dict]) -> list[di
     env_ips = {
         str(r.get("ip") or "")
         for r in rows
-        if "/.env" in (r.get("path") or "") or "/.aws/" in (r.get("path") or "")
+        if _SECRET_INSIGHT_PATH.search(r.get("path") or "")
     }
     env_ips.discard("")
     if env_ips:
@@ -644,7 +649,7 @@ def build(
             continue
         dt = _parse_time(alert)
         src = alert.get("source") if isinstance(alert.get("source"), dict) else {}
-        ip = src.get("ip") or src.get("value") or ""
+        ip = netguard.canonical_ip(src.get("ip") or src.get("value") or "")
         cn = str(alert.get("cn") or src.get("cn") or src.get("country") or "").upper()
         http = http_of(alert)
         row = {
