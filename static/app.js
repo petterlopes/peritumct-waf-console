@@ -474,8 +474,21 @@ function renderOffenders(payload) {
     return
   }
   node.innerHTML = items.map((it) => {
-    const scen = ((it.scenarios || []).map((s) => s.scenario).filter(Boolean).slice(0, 2).join(", ")) || "—"
-    return `<div class="stack-row"><button type="button" class="linkish" data-dossier="${esc(it.ip)}"><code>${esc(it.ip)}</code></button><b>${esc(it.events)} · ${esc(scen)}</b></div>`
+    const raw = (it.scenarios || []).map((s) => String(s.scenario || "")).filter(Boolean)
+    const names = []
+    raw.forEach((s) => {
+      scenarioBrief(s).split(", ").forEach((part) => {
+        const name = part.trim()
+        if (name && names.indexOf(name) < 0) names.push(name)
+      })
+    })
+    const label = names.slice(0, 3).join(", ") || "—"
+    const more = names.length > 3 ? " +" + (names.length - 3) : ""
+    return `<div class="offender">
+      <button type="button" class="linkish" data-dossier="${esc(it.ip)}" title="${esc(it.ip)}"><code>${esc(it.ip)}</code></button>
+      <b>${esc(it.events)}</b>
+      <span title="${esc(raw.join(" · "))}">${esc(label + more)}</span>
+    </div>`
   }).join("")
 }
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Repeated offenders keep the source IP inside the card, including IPv6, and list the fired rule names instead of the raw anomaly sentence.
 - OWASP and ATT&CK tiles count the same unique sources as the findings table. A domain filter that the sample cannot satisfy says so, instead of leaving the old total on the tile. Tile text lists scenarios in the sample; installed Hub rules stay a count.
 - Operator JS, CSS and locale files are no longer cached for 120 seconds, so a refresh after deploy shows the current catalog.
 - Add the documented workstation helper `scripts/waf-admin.ps1 tunnel` (`tsh ssh -N -L 18990:127.0.0.1:18990 root@localhost`). The public `/waf` path stays on the admin overlay.
