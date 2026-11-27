@@ -900,7 +900,7 @@ function renderOwasp(data) {
         <span>${esc(c.name || "")}</span>
         <strong title="${esc(t("owasp.sources", "Unique sources"))}">${n}</strong>
         <div class="owasp-bar"><span style="width:${pct}%"></span></div>
-        <small>${ruleText}</small>
+        <small title="${esc(scenarios.join(", "))}">${ruleText}</small>
       </button>`
     }).join("")
     tiles.onclick = (ev) => {
