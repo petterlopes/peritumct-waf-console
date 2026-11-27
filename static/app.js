@@ -189,20 +189,30 @@ function selectedIso() {
   return (typeof mapUi !== "undefined" && mapUi && mapUi.selected) || ""
 }
 
+function cleanHost(raw) {
+  let host = String(raw || "").trim().toLowerCase().split(",")[0].trim()
+  if (host.startsWith("http://") || host.startsWith("https://")) {
+    try { host = new URL(host).hostname || host } catch (e) { host = host.split("/")[0] }
+  }
+  if (host.indexOf(":") >= 0 && host.split(":").length === 2) host = host.split(":")[0]
+  if (host.startsWith("www.")) host = host.slice(4)
+  return host
+}
+
 function selectedHost() {
   const el = $("domainFilter")
-  return el ? (el.value || "").trim().toLowerCase() : ""
+  return el ? cleanHost(el.value) : ""
 }
 
 function hostOf(item) {
-  return String((item && (item.host || item.target_fqdn)) || "").toLowerCase()
+  return cleanHost((item && (item.host || item.target_fqdn)) || "")
 }
 
 function hostMatch(item) {
   const host = selectedHost()
   if (!host) return true
   const got = hostOf(item)
-  return got === host || got.endsWith("." + host)
+  return !!got && got === host
 }
 
 function geoMatch(cn) {
@@ -426,7 +436,8 @@ function renderOverview(data) {
     `<li>${n}<div class="bar"><span style="width:${ok ? 100 : 18}%"></span></div></li>`
   ).join("") +
     `<li class="policy-lock" title="${esc(t("engine.fail_closed_hint", "Traefik bouncer policy — not a live probe; console cannot disable it"))}">${esc(failClosedLock)}<div class="bar"><span style="width:100%"></span></div></li>`
-  $("edgeMap").innerHTML = (data.domains || []).map((d) => {
+  const edgeHosts = (data.domains || []).filter((d) => !selectedHost() || cleanHost(d.host) === selectedHost())
+  $("edgeMap").innerHTML = edgeHosts.map((d) => {
     const code = httpStatusCode(d.status)
     const label = code || d.error || "fail"
     return `<div class="edge-node"><b>${esc(d.host)}</b><span class="${httpStatusClass(d.status)}">${esc(label)}</span></div>`
@@ -471,11 +482,22 @@ function renderOffenders(payload) {
   const node = $("offendersBody")
   if (!node) return
   const items = (payload && payload.items) || []
-  if (!items.length) {
-    node.innerHTML = "<p class='hint'>" + t("offenders.empty", "No repeated sources in this sample") + "</p>"
+  const note = $("offendersScope")
+  if (note) {
+    const domain = selectedHost()
+    note.textContent = domain ? t("offenders.host_unscoped", "This ranking is the LAPI sample. These rows have no FQDN, so the domain does not narrow them. Country and search still apply.") : ""
+    note.classList.toggle("hidden", !domain)
+  }
+  const visible = items.filter((it) => {
+    if (!geoMatch(cnOfIp(it.ip))) return false
+    const scen = (it.scenarios || []).map((s) => s.scenario).join(" ")
+    return matchesFilter([it.ip, scen].join(" "))
+  })
+  if (!visible.length) {
+    node.innerHTML = "<p class='hint'>" + esc(t("offenders.empty", "No repeated sources in this sample")) + "</p>"
     return
   }
-  node.innerHTML = items.map((it) => {
+  node.innerHTML = visible.map((it) => {
     const raw = (it.scenarios || []).map((s) => String(s.scenario || "")).filter(Boolean)
     const names = []
     raw.forEach((s) => {
@@ -586,7 +608,7 @@ function renderMapView(payload) {
     const btn = ev.target.closest("[data-iso]")
     if (btn) selectCountry(btn.getAttribute("data-iso"))
   }
-  const points = (map.points || []).filter((p) => geoMatch(p.cn))
+  const points = (map.points || []).filter((p) => geoMatch(p.cn) && matchesFilter([p.ip, p.cn, p.as_name, p.scenario].join(" ")))
   $("mapPoints").innerHTML = points.map((p) =>
     `<tr><td><code>${esc(p.ip || "")}</code></td><td>${esc(p.cn || "")}</td><td>${esc(p.as_name || "")}</td><td>${esc(p.scenario || "")}</td><td>${p.approx ? t("centroide") : "LAPI"}</td></tr>`
   ).join("") || `<tr><td colspan="5">${t("no_geo")}</td></tr>`
@@ -785,6 +807,12 @@ function renderDecisions(items) {
   if ($("decisionsCount")) {
     $("decisionsCount").textContent = t("decisions.count", "{n} local decisions").replace("{n}", String(filtered.length))
   }
+  const scope = $("decisionsScope")
+  if (scope) {
+    const domain = selectedHost()
+    scope.textContent = domain ? t("decisions.host_global", "Local bans are not tied to a domain. Country and search still apply.") : ""
+    scope.classList.toggle("hidden", !domain)
+  }
   if ($("decisionsStats")) {
     $("decisionsStats").textContent = t(
       "decisions.stats",
@@ -814,6 +842,10 @@ function renderAlerts(items) {
   }
   if ($("alertTopScenarios")) $("alertTopScenarios").innerHTML = stack(topCounts(filtered, scenarioOf, 8))
   if ($("alertTopCountries")) $("alertTopCountries").innerHTML = stack(topCounts(filtered, countryOf, 8))
+  const alertsUnscoped = !!(selectedHost() && (items || []).length && (items || []).every((a) => !hostOf(a)))
+  const alertsEmpty = alertsUnscoped
+    ? t("alerts.host_unscoped", "A domain is selected, and these alerts have no FQDN, so they are hidden. Choose All domains to see them.")
+    : t("alerts.empty")
   $("alertsBody").innerHTML = filtered.map((a, idx) => {
     const ip = ipOf(a)
     const id = a.id != null ? a.id : idx
@@ -827,7 +859,7 @@ function renderAlerts(items) {
     <td>${esc(eventsOf(a))}</td>
     <td><button type="button" data-inspect="${esc(String(id))}" data-inspect-idx="${idx}">${t("alerts.view", "Inspect")}</button></td>
   </tr>`
-  }).join("") || `<tr><td colspan="8">${t("alerts.empty")}</td></tr>`
+  }).join("") || `<tr><td colspan="8">${esc(alertsEmpty)}</td></tr>`
 }
 
 function showAlertInspect(alert) {
@@ -1540,7 +1572,8 @@ function renderDashboard(data) {
       topCard(t("dash.top.actions", "Security actions"), top.actions, "action")
     ].join("")
   }
-  const origin = data.origin || (cache.domains && cache.domains.origin) || []
+  const originAll = data.origin || (cache.domains && cache.domains.origin) || []
+  const origin = originAll.filter((d) => !selectedHost() || cleanHost(d.host) === selectedHost())
   const pubMap = {}
   ;((cache.domains && cache.domains.public) || data.public || []).forEach((p) => { pubMap[p.host] = p })
   if ($("dashOriginBody")) {
@@ -1562,7 +1595,14 @@ function renderDashboard(data) {
          "<div class=\"kpi-tile\"><span>" + t("dash.kpi.outband_ms", "Out-of-band ms") + "</span><b>" + (perf.outband_ms ?? 0) + "</b></div>")
       : "<p class=\"na\">" + t("dash.na", "Not in LAPI event meta") + "</p>"
   }
-  const eventsSrc = groupedEvents(data.events || [])
+  const narrowed = !!((($("filterBox") && $("filterBox").value) || "").trim() || selectedIso())
+  const scopeNote = $("dashScopeNote")
+  if (scopeNote) {
+    scopeNote.textContent = narrowed ? t("dash.rows_narrowed", "Event and log rows also follow the map country and the search box. Totals above stay the domain window.") : ""
+    scopeNote.classList.toggle("hidden", !narrowed)
+  }
+  const rowVisible = (r) => geoMatch(r.country || r.cn) && matchesFilter([r.when, r.action, r.country, r.ip, r.host, r.path, r.method, r.service].join(" "))
+  const eventsSrc = groupedEvents((data.events || []).filter(rowVisible))
   const ev = pageSlice(eventsSrc, "events")
   if ($("dashEventsBody")) {
     if (dashGroupBy) {
@@ -1576,7 +1616,7 @@ function renderDashboard(data) {
     }
   }
   renderPager("dashEventsPager", "events", ev.total)
-  const lg = pageSlice(data.logs || [], "logs")
+  const lg = pageSlice((data.logs || []).filter(rowVisible), "logs")
   if ($("dashLogsBody")) {
     $("dashLogsBody").innerHTML = lg.rows.map((r, i) => {
       const key = "log|" + rowKey(r, i)

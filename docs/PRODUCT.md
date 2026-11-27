@@ -41,6 +41,7 @@ If the console UI is unavailable, that alone does **not** redefine the protectio
 - **2.0.7:** Hub inventory read-only + IP management (check blocked / public IP).
 - **2.0.8:** Control-plane export (secrets redacted), audit.jsonl tail RO, alerts `since=` allowlist, CrowdSec-only config integrity hashes.
 - **2.0.9:** Alert inspect ban/unban/dossier, decisions filters/stats, machines RO, since-aligned offenders/map, allowlists CSV.
+- **2.0.10:** Header filters are an exact FQDN, a map country, and a search box. See [FILTERS.md](FILTERS.md). OWASP correlation uses Top 10:2025.
 
 ## Editorial article
 

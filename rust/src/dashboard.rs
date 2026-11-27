@@ -458,6 +458,24 @@ fn parse_naive_utc(text: &str) -> Option<DateTime<Utc>> {
         .map(|naive| naive.and_utc())
 }
 
+fn probe_host(probe: &Value) -> String {
+    probe
+        .get("host")
+        .and_then(|v| v.as_str())
+        .map(clean_host)
+        .unwrap_or_default()
+}
+
+fn scoped_probes(probes: Vec<Value>, host: &str) -> Vec<Value> {
+    if host.is_empty() {
+        return probes;
+    }
+    probes
+        .into_iter()
+        .filter(|p| probe_host(p) == host)
+        .collect()
+}
+
 fn match_host(alert: &Map<String, Value>, host: &str) -> bool {
     if host.is_empty() {
         return true;
@@ -468,8 +486,7 @@ fn match_host(alert: &Map<String, Value>, host: &str) -> bool {
         .map(|v| unwrap(v))
         .unwrap_or_else(|| http_of(alert).get("host").cloned().unwrap_or_default());
     let got = clean_host(&raw_host);
-    !got.is_empty()
-        && (got == want || got.ends_with(&format!(".{want}")) || want.ends_with(&format!(".{got}")))
+    !got.is_empty() && got == want
 }
 
 fn match_filters(row: &Map<String, Value>, filters: &HashMap<String, String>) -> bool {
@@ -1103,13 +1120,7 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
         })
         .collect();
     let mut host = clean_host(opts.host);
-    if !host.is_empty()
-        && !hosts.is_empty()
-        && !hosts.contains(&host)
-        && !hosts
-            .iter()
-            .any(|h| host.ends_with(&format!(".{h}")) || h.ends_with(&format!(".{host}")))
-    {
+    if !host.is_empty() && !hosts.is_empty() && !hosts.contains(&host) {
         host.clear();
     }
     let now = opts.now.unwrap_or_else(Utc::now);
@@ -1133,6 +1144,8 @@ pub fn build(alerts: &[Value], opts: BuildOptions<'_>) -> Value {
         .filter(|p| p.is_object())
         .cloned()
         .collect();
+    let origin: Vec<Value> = scoped_probes(origin, &host);
+    let public: Vec<Value> = scoped_probes(public, &host);
     let hub_rules: Vec<String> = opts
         .hub_rules
         .unwrap_or(&[])

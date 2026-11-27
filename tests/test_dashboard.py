@@ -238,6 +238,41 @@ class ScannerDetectTests(unittest.TestCase):
         self.assertTrue(data["appsec"]["lifetime"])
         self.assertFalse(data["bot_challenge"])
 
+    def test_host_filter_is_exact(self) -> None:
+        now = datetime(2026, 11, 27, 15, 0, tzinfo=timezone.utc)
+
+        def alert(host: str, ip: str) -> dict:
+            return {
+                "created_at": "2026-11-27T12:00:00Z",
+                "scenario": "crowdsecurity/http-probing",
+                "source": {"ip": ip, "cn": "BR"},
+                "events": [{"meta": [
+                    {"key": "target_fqdn", "value": host},
+                    {"key": "target_uri", "value": "/"},
+                ]}],
+            }
+
+        alerts = [
+            alert("apex.example", "203.0.113.1"),
+            alert("sub.apex.example", "203.0.113.2"),
+            alert("www.apex.example", "203.0.113.3"),
+        ]
+        hosts = ["apex.example", "sub.apex.example"]
+        probes = [
+            {"host": "apex.example", "status": 200},
+            {"host": "sub.apex.example", "status": 200},
+        ]
+        child = dashboard.build(
+            alerts, hosts=hosts, host="sub.apex.example", origin_probes=probes, now=now,
+        )
+        self.assertEqual(child["kpis"]["events"], 1)
+        self.assertEqual([p["host"] for p in child["origin"]], ["sub.apex.example"])
+        parent = dashboard.build(
+            alerts, hosts=hosts, host="www.apex.example", origin_probes=probes, now=now,
+        )
+        self.assertEqual(parent["kpis"]["events"], 2)
+        self.assertEqual([p["host"] for p in parent["origin"]], ["apex.example"])
+
     def test_unknown_host_filter_ignored(self) -> None:
         data = dashboard.build(
             [],

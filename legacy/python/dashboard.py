@@ -199,7 +199,7 @@ def _match_host(alert: dict, host: str) -> bool:
         return True
     want = _clean_host(host)
     got = _clean_host(alert.get("host") or http_of(alert).get("host") or "")
-    return bool(got) and (got == want or got.endswith("." + want) or want.endswith("." + got))
+    return bool(got) and got == want
 
 
 def _match_filters(row: dict, filters: dict[str, str]) -> bool:
@@ -632,12 +632,15 @@ def build(
     filters = {k: str((filters or {}).get(k) or "").strip() for k in _FILTER_KEYS}
     hosts = [_clean_host(h) for h in (hosts or []) if h]
     host = _clean_host(host)
-    if host and hosts and host not in hosts and not any(host.endswith("." + h) or h.endswith("." + host) for h in hosts):
+    if host and hosts and host not in hosts:
         host = ""
     now = now or datetime.now(timezone.utc)
     decisions = [d for d in (decisions or []) if isinstance(d, dict)]
     origin = [p for p in (origin_probes or []) if isinstance(p, dict)]
     public = [p for p in (public_probes or []) if isinstance(p, dict)]
+    if host:
+        origin = [p for p in origin if _clean_host(str(p.get("host") or "")) == host]
+        public = [p for p in public if _clean_host(str(p.get("host") or "")) == host]
     hub_rules = [str(x) for x in (hub_rules or [])]
 
     rows = []

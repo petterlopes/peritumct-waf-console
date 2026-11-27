@@ -14,5 +14,6 @@ site-filters.json
 sites.json
 !examples/sites.json
 rust/target/
+rust/target-msvc/
 **/target/
 

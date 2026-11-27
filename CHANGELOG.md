@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Domain filter is an exact FQDN (`www` folds into the apex). A selected subdomain no longer includes the parent site, and origin health follows the same host. Map country and search narrow alerts, decisions, findings, offenders and dashboard rows; dashboard totals stay the domain window. Offender rankings and local bans say when they are not host-scoped.
 - Repeated offenders keep the source IP inside the card, including IPv6, and list the fired rule names instead of the raw anomaly sentence.
 - OWASP and ATT&CK tiles count the same unique sources as the findings table. A domain filter that the sample cannot satisfy says so, instead of leaving the old total on the tile. Tile text lists scenarios in the sample; installed Hub rules stay a count.
 - Operator JS, CSS and locale files are no longer cached for 120 seconds, so a refresh after deploy shows the current catalog.
