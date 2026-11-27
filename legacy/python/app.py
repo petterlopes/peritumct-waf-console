@@ -817,9 +817,11 @@ class Handler(BaseHTTPRequestHandler):
             name = path.split("/")[-1]
             ctype = "text/css" if name.endswith(".css") else "application/javascript" if name.endswith(".js") else "application/octet-stream"
             return self._static(name, ctype, cacheable=True)
-        if path in ("/app.css", "/app.js", "/i18n.js", "/world.js", "/map.js"):
+        if path == "/world.js":
+            return self._static("world.js", "application/javascript", cacheable=True)
+        if path in ("/app.css", "/app.js", "/i18n.js", "/map.js"):
             ctype = "text/css" if path.endswith(".css") else "application/javascript"
-            return self._static(path.lstrip("/"), ctype, cacheable=True)
+            return self._static(path.lstrip("/"), ctype, cacheable=False)
         if path in ("/logo.svg", "/logo.png"):
             ctype = "image/svg+xml" if path.endswith(".svg") else "image/png"
             return self._static(path.lstrip("/"), ctype, cacheable=True)
@@ -827,7 +829,7 @@ class Handler(BaseHTTPRequestHandler):
             name = path.split("/")[-1]
             if name not in ("en.json", "pt-BR.json"):
                 return self._json_error(404, "not found")
-            return self._static("locales/" + name, "application/json; charset=utf-8", cacheable=True)
+            return self._static("locales/" + name, "application/json; charset=utf-8", cacheable=False)
         if path == "/api/health":
             eng = engine_status()
             return self._send(200, {"ok": True, **eng})

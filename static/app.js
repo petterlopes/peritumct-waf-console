@@ -344,6 +344,28 @@ function owaspLabel(data, code) {
   return (cat.id || cat.code) + (cat.name ? " " + cat.name : "")
 }
 
+function correlationScoped(data) {
+  return ((data && data.findings) || []).filter((f) => {
+    if (!geoMatch(f.cn)) return false
+    if (!hostMatch(f)) return false
+    return matchesFilter([f.when, f.ip, f.cn, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
+  })
+}
+
+function correlationUnscoped(data) {
+  const all = (data && data.findings) || []
+  return !!(selectedHost() && all.length && all.every((f) => !hostOf(f)))
+}
+
+function sourceCount(findings, pred) {
+  const seen = new Set()
+  findings.forEach((f) => {
+    if (pred && !pred(f)) return
+    seen.add(String(f.ip || f.scenario || ""))
+  })
+  return seen.size
+}
+
 function renderFilterChip() {
   const chip = $("mapFilterChip")
   const label = $("mapFilterLabel")
@@ -823,20 +845,45 @@ async function banIp(ip, duration, reason) {
 function renderOwasp(data) {
   data = data || cache.correlation || {}
   const cats = data.owasp || []
-  const max = Math.max(1, ...cats.map((c) => c.count || 0))
+  const scoped = correlationScoped(data)
+  const unscoped = correlationUnscoped(data)
+  const note = $("owaspScopeNote")
+  if (note) {
+    note.textContent = unscoped ? t("owasp.host_unscoped", "A domain is selected, and these findings have no FQDN, so they are hidden. Choose All domains to see them.") : ""
+    note.classList.toggle("hidden", !unscoped)
+  }
+  const counts = {}
+  cats.forEach((c) => {
+    counts[c.code] = sourceCount(scoped, (f) => f.owasp === c.code)
+  })
+  const max = Math.max(1, ...cats.map((c) => counts[c.code] || 0))
   const tiles = $("owaspTiles")
   if (tiles) {
     tiles.innerHTML = cats.map((c) => {
-      const hot = (c.count || 0) > 0
-      const pct = Math.round((100 * (c.count || 0)) / max)
-      const rules = (c.hub_rules || []).slice(0, 3).join(", ")
+      const n = counts[c.code] || 0
+      const hot = n > 0
+      const pct = Math.round((100 * n) / max)
       const active = owaspSelected === c.code ? " active" : ""
-      const ruleText = rules ? esc(rules) : esc(t("owasp.no_rules", "no hub rules"))
+      const scenarios = []
+      scoped.forEach((f) => {
+        if (f.owasp !== c.code) return
+        const name = String(f.scenario || "")
+        if (name && scenarios.indexOf(name) < 0) scenarios.push(name)
+      })
+      let ruleText
+      if (scenarios.length) {
+        ruleText = scenarios.slice(0, 2).map(esc).join(", ")
+        if (scenarios.length > 2) ruleText += " +" + (scenarios.length - 2)
+      } else if ((c.hub_rules || []).length) {
+        ruleText = esc(t("owasp.hub_installed", "{n} hub rules installed").replace("{n}", String(c.hub_rules.length)))
+      } else {
+        ruleText = esc(t("owasp.no_rules", "no hub rules"))
+      }
       return `<button type="button" class="owasp-tile${hot ? " hot" : ""}${active}" data-owasp="${esc(c.code)}" title="${esc(c.url || "")}">
         <b>${esc(c.code)}</b>
         <span>${esc(c.id || "")}</span>
         <span>${esc(c.name || "")}</span>
-        <strong>${Number(c.count) || 0}</strong>
+        <strong title="${esc(t("owasp.sources", "Unique sources"))}">${n}</strong>
         <div class="owasp-bar"><span style="width:${pct}%"></span></div>
         <small>${ruleText}</small>
       </button>`
@@ -849,14 +896,12 @@ function renderOwasp(data) {
       renderOwasp(cache.correlation)
     }
   }
-  const findings = (data.findings || []).filter((f) => {
-    if (owaspSelected && f.owasp !== owaspSelected) return false
-    if (!geoMatch(f.cn)) return false
-    if (!hostMatch(f)) return false
-    return matchesFilter([f.when, f.ip, f.cn, f.scenario, f.owasp, (f.attack || []).join(" "), f.confidence].join(" "))
-  })
+  const findings = scoped.filter((f) => !owaspSelected || f.owasp === owaspSelected)
   const body = $("owaspFindings")
   if (body) {
+    const empty = unscoped
+      ? t("owasp.host_unscoped", "A domain is selected, and these findings have no FQDN, so they are hidden. Choose All domains to see them.")
+      : t("owasp.empty", "No correlated findings")
     body.innerHTML = findings.map((f) => `<tr>
       <td>${esc(fmtTime(f.when))}</td>
       <td><code>${esc(f.ip || "—")}</code></td>
@@ -864,13 +909,13 @@ function renderOwasp(data) {
       <td>${esc(owaspLabel(data, f.owasp))}</td>
       <td>${(f.attack || []).map(attackLink).join(" ") || "—"}</td>
       <td>${esc(f.confidence || "—")}</td>
-    </tr>`).join("") || `<tr><td colspan="6">${t("owasp.empty", "No correlated findings")}</td></tr>`
+    </tr>`).join("") || `<tr><td colspan="6">${esc(empty)}</td></tr>`
   }
   const attack = $("owaspAttack")
   if (attack) {
     attack.innerHTML = stack((data.attack || []).map((a) => ({
       l: a.id + " " + (a.name || ""),
-      r: a.count || 0
+      r: sourceCount(scoped, (f) => (f.attack || []).indexOf(a.id) >= 0)
     }))) || `<p class="hint">${t("empty")}</p>`
   }
   const conn = $("owaspConnectors")
@@ -918,8 +963,12 @@ function paintMitreOverview(data) {
   const mount = $("mitreOverview")
   if (!mount) return
   data = data || cache.correlation || {}
+  const scoped = correlationScoped(data)
   const techniques = ((data.mitre || {}).techniques || []).slice()
-  techniques.sort((a, b) => (b.count || 0) - (a.count || 0))
+  techniques.forEach((c) => {
+    c.count = sourceCount(scoped, (f) => (f.attack || []).indexOf(c.id) >= 0)
+  })
+  techniques.sort((a, b) => (b.count || 0) - (a.count || 0) || String(a.id).localeCompare(String(b.id)))
   const top = techniques.slice(0, 8)
   const max = Math.max(1, ...top.map((c) => c.count || 0))
   mount.innerHTML = top.map((c) => {
@@ -939,8 +988,16 @@ function renderMitre(data) {
   data = data || cache.correlation || {}
   paintMitreOverview(data)
   const mitre = data.mitre || {}
-  const techniques = mitre.techniques || []
-  const tactics = mitre.tactics || []
+  const scoped = correlationScoped(data)
+  const techniques = (mitre.techniques || []).map((c) => Object.assign({}, c, {
+    count: sourceCount(scoped, (f) => (f.attack || []).indexOf(c.id) >= 0)
+  }))
+  const tactics = (mitre.tactics || []).map((tac) => {
+    const ids = techniques.filter((c) => c.tactic === tac.name).map((c) => c.id)
+    return Object.assign({}, tac, {
+      count: sourceCount(scoped, (f) => (f.attack || []).some((id) => ids.indexOf(id) >= 0))
+    })
+  })
   const max = Math.max(1, ...techniques.map((c) => c.count || 0))
   const chips = $("mitreTactics")
   if (chips) {

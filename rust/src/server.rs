@@ -384,7 +384,10 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
             let name = p.rsplit('/').next().unwrap_or("");
             return serve_static(static_dir, name, true);
         }
-        "/app.css" | "/app.js" | "/i18n.js" | "/world.js" | "/map.js" => {
+        "/app.css" | "/app.js" | "/i18n.js" | "/map.js" => {
+            return serve_static(static_dir, path.trim_start_matches('/'), false);
+        }
+        "/world.js" => {
             return serve_static(static_dir, path.trim_start_matches('/'), true);
         }
         "/logo.svg" | "/logo.png" => {
@@ -395,7 +398,7 @@ fn handle_get(path: &str, qs: &HashMap<String, String>, static_dir: &Path) -> Re
             if name != "en.json" && name != "pt-BR.json" {
                 return json_err(StatusCode::NOT_FOUND, "not found");
             }
-            return serve_static(static_dir, &format!("locales/{name}"), true);
+            return serve_static(static_dir, &format!("locales/{name}"), false);
         }
         _ => {}
     }
