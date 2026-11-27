@@ -880,13 +880,15 @@ function renderOwasp(data) {
       const scenarios = []
       scoped.forEach((f) => {
         if (f.owasp !== c.code) return
-        const name = scenarioBrief(f.scenario)
-        if (name && scenarios.indexOf(name) < 0) scenarios.push(name)
+        scenarioBrief(f.scenario).split(", ").forEach((part) => {
+          const name = part.trim()
+          if (name && scenarios.indexOf(name) < 0) scenarios.push(name)
+        })
       })
       let ruleText
       if (scenarios.length) {
-        ruleText = scenarios.slice(0, 2).map(esc).join(", ")
-        if (scenarios.length > 2) ruleText += " +" + (scenarios.length - 2)
+        ruleText = scenarios.slice(0, 3).map(esc).join(", ")
+        if (scenarios.length > 3) ruleText += " +" + (scenarios.length - 3)
       } else if ((c.hub_rules || []).length) {
         ruleText = esc(t("owasp.hub_installed", "{n} hub rules installed").replace("{n}", String(c.hub_rules.length)))
       } else {
