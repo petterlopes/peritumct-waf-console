@@ -367,7 +367,9 @@ function scenarioBrief(name) {
     if (!id || id.toLowerCase() === "anomaly") return
     if (names.indexOf(id) < 0) names.push(id)
   })
-  return names.join(", ") || raw.replace(/^crowdsecurity\//, "")
+  if (names.length) return names.join(", ")
+  if (/out-of-band/i.test(raw)) return "anomaly"
+  return raw.replace(/^crowdsecurity\//, "")
 }
 
 function sourceCount(findings, pred) {
