@@ -357,6 +357,19 @@ function correlationUnscoped(data) {
   return !!(selectedHost() && all.length && all.every((f) => !hostOf(f)))
 }
 
+function scenarioBrief(name) {
+  const raw = String(name || "")
+  const marker = raw.match(/out-of-band:\s*(.*)/i)
+  if (!marker) return raw.replace(/^crowdsecurity\//, "")
+  const names = []
+  marker[1].split(",").forEach((part) => {
+    const id = part.split(":")[0].trim()
+    if (!id || id.toLowerCase() === "anomaly") return
+    if (names.indexOf(id) < 0) names.push(id)
+  })
+  return names.join(", ") || raw.replace(/^crowdsecurity\//, "")
+}
+
 function sourceCount(findings, pred) {
   const seen = new Set()
   findings.forEach((f) => {
@@ -867,7 +880,7 @@ function renderOwasp(data) {
       const scenarios = []
       scoped.forEach((f) => {
         if (f.owasp !== c.code) return
-        const name = String(f.scenario || "")
+        const name = scenarioBrief(f.scenario)
         if (name && scenarios.indexOf(name) < 0) scenarios.push(name)
       })
       let ruleText
